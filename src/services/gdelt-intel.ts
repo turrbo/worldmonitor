@@ -168,7 +168,7 @@ export async function fetchGdeltArticles(
       toneFilter: '',
       sort: '',
     });
-  }, emptyGdeltFallback);
+  }, emptyGdeltFallback, { cacheKey, shouldCache: (r) => r.articles.length > 0 });
 
   if (resp.error) {
     console.warn(`[GDELT-Intel] RPC error: ${resp.error}`);
@@ -283,7 +283,7 @@ export async function fetchPositiveGdeltArticles(
       toneFilter,
       sort,
     });
-  }, emptyGdeltFallback);
+  }, emptyGdeltFallback, { cacheKey, shouldCache: (r) => r.articles.length > 0 });
 
   if (resp.error) {
     console.warn(`[GDELT-Intel] Positive RPC error: ${resp.error}`);
