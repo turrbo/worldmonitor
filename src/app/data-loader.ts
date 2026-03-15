@@ -2305,7 +2305,7 @@ export class DataLoaderManager implements AppModule {
       const [restrictions, tariffs, flows, barriers, revenue] = await Promise.allSettled([
         fetchTradeRestrictions([], 50),
         fetchTariffTrends('840', '156', '', 10),
-        fetchTradeFlows('840', '156', 10),
+        fetchTradeFlows('840', '000', 10),
         fetchTradeBarriers([], '', 50),
         fetchCustomsRevenue(),
       ]);
