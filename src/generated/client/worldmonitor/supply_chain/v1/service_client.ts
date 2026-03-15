@@ -69,8 +69,6 @@ export interface TransitSummary {
   riskLevel: string;
   incidentCount7d: number;
   disruptionPct: number;
-  riskSummary: string;
-  riskReportAction: string;
 }
 
 export interface TransitDayCount {

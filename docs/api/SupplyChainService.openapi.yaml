@@ -252,10 +252,6 @@ components:
                 disruptionPct:
                     type: number
                     format: double
-                riskSummary:
-                    type: string
-                riskReportAction:
-                    type: string
         TransitDayCount:
             type: object
             properties:
