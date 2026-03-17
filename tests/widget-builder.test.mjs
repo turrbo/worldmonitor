@@ -1129,6 +1129,22 @@ describe('PRO widget — store and sanitizer', () => {
       'wrapProWidgetHtml must escape the srcdoc attribute value',
     );
   });
+
+  it('wrapProWidgetHtml injects Chart.js from jsdelivr so new Chart() is available', () => {
+    const fnIdx = san.indexOf('wrapProWidgetHtml');
+    const fnBody = san.slice(fnIdx, fnIdx + 1500);
+    assert.ok(
+      fnBody.includes('cdn.jsdelivr.net') && fnBody.includes('chart.js'),
+      'wrapProWidgetHtml must inject Chart.js CDN script so widgets can call new Chart(...)',
+    );
+    // Script must appear before </head> so Chart is defined when body scripts run
+    const scriptPos = fnBody.indexOf('chart.js');
+    const bodyPos = fnBody.indexOf('<body>');
+    assert.ok(
+      scriptPos < bodyPos,
+      'Chart.js script tag must be in <head>, before <body>',
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
