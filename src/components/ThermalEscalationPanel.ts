@@ -77,7 +77,7 @@ export class ThermalEscalationPanel extends Panel {
             ${assets}
           </td>
           <td class="thermal-frp">${escapeHtml(frpDisplay)} MW</td>
-          <td class="thermal-delta">${escapeHtml(`${deltaSign}${(c.countDelta * 100).toFixed(0)}%`)} · z${c.zScore.toFixed(1)}</td>
+          <td class="thermal-delta">${escapeHtml(`${deltaSign}${Math.round(c.countDelta)}`)} · z${c.zScore.toFixed(1)}</td>
           <td class="thermal-persistence">${escapeHtml(persistence)}</td>
           <td class="thermal-observed">${escapeHtml(age)}</td>
         </tr>
