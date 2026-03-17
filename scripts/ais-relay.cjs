@@ -3027,13 +3027,11 @@ async function fetchTheaterFlightsFromWingbits() {
 
 function countMilitaryVesselsInBounds(bounds) {
   let count = 0;
-  const cutoff = Date.now() - 6 * 60 * 60 * 1000; // only vessels seen in last 6h
-  for (const v of vessels.values()) {
-    if (v.timestamp < cutoff) continue;
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+  for (const v of candidateReports.values()) {
+    if ((v.timestamp || 0) < cutoff) continue;
     if (v.lat >= bounds.south && v.lat <= bounds.north && v.lon >= bounds.west && v.lon <= bounds.east) {
-      if (isLikelyMilitaryCandidate({ MMSI: v.mmsi, ShipType: v.shipType, ShipName: v.name })) {
-        count++;
-      }
+      count++;
     }
   }
   return count;
