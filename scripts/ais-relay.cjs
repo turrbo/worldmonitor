@@ -2853,18 +2853,6 @@ function startServiceStatusesSeedLoop() {
 
 
 // ─────────────────────────────────────────────────────────────
-// Theater Posture Seed — fetches OpenSky directly via localhost
-// proxy, computes military postures, writes to Redis.
-// Eliminates circular dependency on Vercel RPC.
-// ─────────────────────────────────────────────────────────────
-const THEATER_POSTURE_SEED_INTERVAL_MS = 600_000; // 10 min
-const THEATER_POSTURE_LIVE_KEY = 'theater-posture:sebuf:v1';
-const THEATER_POSTURE_STALE_KEY = 'theater_posture:sebuf:stale:v1';
-const THEATER_POSTURE_BACKUP_KEY = 'theater-posture:sebuf:backup:v1';
-const THEATER_POSTURE_LIVE_TTL = 900;    // 15 min
-const THEATER_POSTURE_STALE_TTL = 86400; // 24h
-const THEATER_POSTURE_BACKUP_TTL = 604800; // 7d
-
 const THEATER_MIL_PREFIXES = [
   'RCH', 'REACH', 'MOOSE', 'EVAC', 'DUSTOFF', 'PEDRO',
   'DUKE', 'HAVOC', 'KNIFE', 'WARHAWK', 'VIPER', 'RAGE', 'FURY',
@@ -3025,87 +3013,22 @@ async function fetchTheaterFlightsFromWingbits() {
   }
 }
 
-function countMilitaryVesselsInBounds(bounds) {
-  let count = 0;
-  const cutoff = Date.now() - 6 * 60 * 60 * 1000; // only vessels seen in last 6h
+function getRecentMilitaryVessels() {
+  const recent = [];
+  const cutoff = Date.now() - 6 * 60 * 60 * 1000;
   for (const v of vessels.values()) {
     if (v.timestamp < cutoff) continue;
-    if (v.lat >= bounds.south && v.lat <= bounds.north && v.lon >= bounds.west && v.lon <= bounds.east) {
-      if (isLikelyMilitaryCandidate({ MMSI: v.mmsi, ShipType: v.shipType, ShipName: v.name })) {
-        count++;
-      }
-    }
+    if (!isLikelyMilitaryCandidate({ MMSI: v.mmsi, ShipType: v.shipType, ShipName: v.name })) continue;
+    recent.push({
+      mmsi: v.mmsi,
+      name: v.name,
+      lat: v.lat,
+      lon: v.lon,
+      shipType: v.shipType,
+      timestamp: v.timestamp,
+    });
   }
-  return count;
-}
-
-function calculateTheaterPostures(flights) {
-  return POSTURE_THEATERS.map((theater) => {
-    const tf = flights.filter(
-      (f) => f.lat >= theater.bounds.south && f.lat <= theater.bounds.north &&
-        f.lon >= theater.bounds.west && f.lon <= theater.bounds.east,
-    );
-    const total = tf.length;
-    const tankers = tf.filter((f) => f.aircraftType === 'tanker').length;
-    const awacs = tf.filter((f) => f.aircraftType === 'awacs').length;
-    const fighters = tf.filter((f) => f.aircraftType === 'fighter').length;
-    const vesselCount = countMilitaryVesselsInBounds(theater.bounds);
-    const combinedActivity = total + vesselCount;
-    const postureLevel = combinedActivity >= theater.thresholds.critical ? 'critical'
-      : combinedActivity >= theater.thresholds.elevated ? 'elevated' : 'normal';
-    const strikeCapable = tankers >= theater.strikeIndicators.minTankers &&
-      awacs >= theater.strikeIndicators.minAwacs && fighters >= theater.strikeIndicators.minFighters;
-    const ops = [];
-    if (strikeCapable) ops.push('strike_capable');
-    if (tankers > 0) ops.push('aerial_refueling');
-    if (awacs > 0) ops.push('airborne_early_warning');
-    if (vesselCount > 0) ops.push('naval_presence');
-    return {
-      theater: theater.id, postureLevel, activeFlights: total,
-      trackedVessels: vesselCount, activeOperations: ops, assessedAt: Date.now(),
-    };
-  });
-}
-async function seedTheaterPosture() {
-  const t0 = Date.now();
-  let flights = [];
-  try {
-    flights = await fetchTheaterFlightsFromOpenSky();
-  } catch (e) {
-    console.warn(`[TheaterPosture] OpenSky failed: ${e?.message || e}`);
-  }
-  if (flights.length === 0) {
-    const wb = await fetchTheaterFlightsFromWingbits();
-    if (wb && wb.length > 0) flights = wb;
-  }
-  if (flights.length === 0) {
-    console.warn('[TheaterPosture] No military flights from OpenSky or Wingbits — skipping');
-    return;
-  }
-  const theaters = calculateTheaterPostures(flights);
-  const payload = { theaters };
-  const ok1 = await upstashSet(THEATER_POSTURE_LIVE_KEY, payload, THEATER_POSTURE_LIVE_TTL);
-  const ok2 = await upstashSet(THEATER_POSTURE_STALE_KEY, payload, THEATER_POSTURE_STALE_TTL);
-  const ok3 = await upstashSet(THEATER_POSTURE_BACKUP_KEY, payload, THEATER_POSTURE_BACKUP_TTL);
-  await upstashSet('seed-meta:theater-posture', { fetchedAt: Date.now(), recordCount: flights.length }, 604800);
-  const elevated = theaters.filter((t) => t.postureLevel !== 'normal').length;
-  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`[TheaterPosture] Seeded ${flights.length} mil flights, ${theaters.length} theaters (${elevated} elevated), redis: ${ok1 && ok2 && ok3 ? 'OK' : 'PARTIAL'} [${elapsed}s]`);
-}
-
-function startTheaterPostureSeedLoop() {
-  if (!UPSTASH_ENABLED) {
-    console.log('[TheaterPosture] Disabled (no Upstash Redis)');
-    return;
-  }
-  console.log(`[TheaterPosture] Seed loop starting (interval ${THEATER_POSTURE_SEED_INTERVAL_MS / 1000 / 60}min)`);
-  // Delay initial seed 30s to let the relay's OpenSky proxy start up
-  setTimeout(() => {
-    seedTheaterPosture().catch((e) => console.warn('[TheaterPosture] Initial seed error:', e?.message || e));
-    setInterval(() => {
-      seedTheaterPosture().catch((e) => console.warn('[TheaterPosture] Seed error:', e?.message || e));
-    }, THEATER_POSTURE_SEED_INTERVAL_MS).unref?.();
-  }, 30_000);
+  return recent;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -4388,6 +4311,7 @@ function getRouteGroup(pathname) {
   if (pathname.startsWith('/opensky')) return 'opensky';
   if (pathname.startsWith('/rss')) return 'rss';
   if (pathname.startsWith('/ais/snapshot')) return 'snapshot';
+  if (pathname.startsWith('/ais/military-vessels')) return 'snapshot';
   if (pathname.startsWith('/worldbank')) return 'worldbank';
   if (pathname.startsWith('/polymarket')) return 'polymarket';
   if (pathname.startsWith('/ucdp-events')) return 'ucdp-events';
@@ -7069,6 +6993,17 @@ const server = http.createServer(async (req, res) => {
         'CDN-Cache-Control': 'public, max-age=10',
       }, JSON.stringify(payload));
     }
+  } else if (pathname.startsWith('/ais/military-vessels')) {
+    connectUpstream();
+    cleanupAggregates();
+    sendCompressed(req, res, 200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=2',
+      'CDN-Cache-Control': 'public, max-age=10',
+    }, JSON.stringify({
+      snapshotAt: Date.now(),
+      vessels: getRecentMilitaryVessels(),
+    }));
   } else if (pathname === '/opensky-reset') {
     openskyToken = null;
     openskyTokenExpiry = 0;
@@ -8093,8 +8028,6 @@ server.listen(PORT, () => {
   startPositiveEventsSeedLoop();
   startClassifySeedLoop();
   startServiceStatusesSeedLoop();
-  startTheaterPostureSeedLoop();
-
   startWeatherSeedLoop();
   startSpendingSeedLoop();
   startWorldBankSeedLoop();

@@ -2,6 +2,7 @@
 
 import { loadEnvFile, CHROME_UA, getRedisCredentials, acquireLockSafely, releaseLock, withRetry, writeFreshnessMetadata, logSeedResult, verifySeedKey, extendExistingTtl } from './_seed-utils.mjs';
 import { summarizeMilitaryTheaters, buildMilitarySurges, appendMilitaryHistory } from './_military-surges.mjs';
+import { POSTURE_THEATERS, calculateTheaterPostures } from './_theater-posture.mjs';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import https from 'node:https';
@@ -211,19 +212,6 @@ const HOTSPOTS = [
   { name: 'CENTCOM', lat: 28.0, lon: 42.0, radius: 15, priority: 'high' },
   { name: 'EUCOM', lat: 52.0, lon: 28.0, radius: 15, priority: 'medium' },
   { name: 'ARCTIC', lat: 75.0, lon: 0.0, radius: 10, priority: 'low' },
-];
-
-// ── Theater Posture Theaters ───────────────────────────────
-const POSTURE_THEATERS = [
-  { id: 'iran-theater', bounds: { north: 42, south: 20, east: 65, west: 30 }, thresholds: { elevated: 8, critical: 20 }, strikeIndicators: { minTankers: 2, minAwacs: 1, minFighters: 5 } },
-  { id: 'taiwan-theater', bounds: { north: 30, south: 18, east: 130, west: 115 }, thresholds: { elevated: 6, critical: 15 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 4 } },
-  { id: 'baltic-theater', bounds: { north: 65, south: 52, east: 32, west: 10 }, thresholds: { elevated: 5, critical: 12 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
-  { id: 'blacksea-theater', bounds: { north: 48, south: 40, east: 42, west: 26 }, thresholds: { elevated: 4, critical: 10 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
-  { id: 'korea-theater', bounds: { north: 43, south: 33, east: 132, west: 124 }, thresholds: { elevated: 5, critical: 12 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
-  { id: 'south-china-sea', bounds: { north: 25, south: 5, east: 121, west: 105 }, thresholds: { elevated: 6, critical: 15 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 4 } },
-  { id: 'east-med-theater', bounds: { north: 37, south: 33, east: 37, west: 25 }, thresholds: { elevated: 4, critical: 10 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
-  { id: 'israel-gaza-theater', bounds: { north: 33, south: 29, east: 36, west: 33 }, thresholds: { elevated: 3, critical: 8 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
-  { id: 'yemen-redsea-theater', bounds: { north: 22, south: 11, east: 54, west: 32 }, thresholds: { elevated: 4, critical: 10 }, strikeIndicators: { minTankers: 1, minAwacs: 1, minFighters: 3 } },
 ];
 
 // ── Detection Functions ────────────────────────────────────
@@ -1191,32 +1179,6 @@ function filterMilitaryFlights(allStates) {
   };
 }
 
-// ── Theater Posture Calculation ────────────────────────────
-function calculateTheaterPostures(flights) {
-  return POSTURE_THEATERS.map((theater) => {
-    const tf = flights.filter(
-      (f) => f.lat >= theater.bounds.south && f.lat <= theater.bounds.north &&
-        f.lon >= theater.bounds.west && f.lon <= theater.bounds.east,
-    );
-    const total = tf.length;
-    const tankers = tf.filter((f) => f.aircraftType === 'tanker').length;
-    const awacs = tf.filter((f) => f.aircraftType === 'awacs').length;
-    const fighters = tf.filter((f) => f.aircraftType === 'fighter').length;
-    const postureLevel = total >= theater.thresholds.critical ? 'critical'
-      : total >= theater.thresholds.elevated ? 'elevated' : 'normal';
-    const strikeCapable = tankers >= theater.strikeIndicators.minTankers &&
-      awacs >= theater.strikeIndicators.minAwacs && fighters >= theater.strikeIndicators.minFighters;
-    const ops = [];
-    if (strikeCapable) ops.push('strike_capable');
-    if (tankers > 0) ops.push('aerial_refueling');
-    if (awacs > 0) ops.push('airborne_early_warning');
-    return {
-      theater: theater.id, postureLevel, activeFlights: total,
-      trackedVessels: 0, activeOperations: ops, assessedAt: Date.now(),
-    };
-  });
-}
-
 // ── Redis Write ────────────────────────────────────────────
 async function redisSet(url, token, key, value, ttl) {
   const payload = JSON.stringify(value);
@@ -1239,6 +1201,96 @@ async function redisGet(url, token, key) {
   const data = await resp.json();
   if (!data?.result) return null;
   try { return JSON.parse(data.result); } catch { return null; }
+}
+
+function getRelayBaseUrl() {
+  const relayUrl = process.env.WS_RELAY_URL;
+  if (!relayUrl) return null;
+  return relayUrl
+    .replace('wss://', 'https://')
+    .replace('ws://', 'http://')
+    .replace(/\/$/, '');
+}
+
+function getRelayRequestHeaders() {
+  const headers = {
+    Accept: 'application/json',
+    'User-Agent': CHROME_UA,
+  };
+  const relaySecret = process.env.RELAY_SHARED_SECRET;
+  if (relaySecret) {
+    const relayHeader = (process.env.RELAY_AUTH_HEADER || 'x-relay-key').toLowerCase();
+    headers[relayHeader] = relaySecret;
+    headers.Authorization = `Bearer ${relaySecret}`;
+  }
+  return headers;
+}
+
+function getWorldMonitorApiBaseUrl() {
+  return (process.env.WM_API_BASE_URL || 'https://api.worldmonitor.app').replace(/\/$/, '');
+}
+
+async function fetchMilitaryVesselsFromRelay() {
+  const relayBaseUrl = getRelayBaseUrl();
+  if (!relayBaseUrl) {
+    console.log('  Military vessels: relay not configured, using aircraft-only posture');
+    return [];
+  }
+
+  try {
+    const resp = await fetch(`${relayBaseUrl}/ais/military-vessels`, {
+      headers: getRelayRequestHeaders(),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!resp.ok) {
+      console.warn(`  Military vessels: relay HTTP ${resp.status}`);
+      return [];
+    }
+    const data = await resp.json();
+    if (!Array.isArray(data?.vessels)) return [];
+    return data.vessels
+      .filter((v) => Number.isFinite(v?.lat) && Number.isFinite(v?.lon))
+      .map((v) => ({
+        mmsi: String(v.mmsi || ''),
+        name: String(v.name || ''),
+        lat: Number(v.lat),
+        lon: Number(v.lon),
+        shipType: Number(v.shipType) || 0,
+        timestamp: Number(v.timestamp) || 0,
+      }));
+  } catch (err) {
+    console.warn(`  Military vessels: relay fetch failed (${err.message || err})`);
+    return [];
+  }
+}
+
+async function fetchCiiScores() {
+  const baseUrl = getWorldMonitorApiBaseUrl();
+
+  try {
+    const resp = await fetch(`${baseUrl}/api/intelligence/v1/get-risk-scores`, {
+      headers: {
+        Accept: 'application/json',
+        'User-Agent': CHROME_UA,
+        Origin: 'https://worldmonitor.app',
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!resp.ok) {
+      console.warn(`  CII scores: API HTTP ${resp.status}`);
+      return {};
+    }
+    const data = await resp.json();
+    if (!Array.isArray(data?.ciiScores)) return {};
+    return Object.fromEntries(
+      data.ciiScores
+        .filter((score) => typeof score?.region === 'string' && Number.isFinite(Number(score?.combinedScore)))
+        .map((score) => [String(score.region).toUpperCase(), Number(score.combinedScore)]),
+    );
+  } catch (err) {
+    console.warn(`  CII scores: fetch failed (${err.message || err})`);
+    return {};
+  }
 }
 
 async function triggerForecastSeedIfEnabled() {
@@ -1355,17 +1407,18 @@ async function main() {
       altitude: f.altitude || 0, heading: f.heading || 0, speed: f.speed || 0,
       aircraftType: f.aircraftType || detectAircraftType(f.callsign),
     }));
-    const theaters = calculateTheaterPostures(theaterFlights).map((theater) => ({
-      ...theater,
-      assessedAt,
-    }));
+    const [militaryVessels, ciiScores] = await Promise.all([
+      fetchMilitaryVesselsFromRelay(),
+      fetchCiiScores(),
+    ]);
+    const theaters = calculateTheaterPostures(theaterFlights, militaryVessels, assessedAt, ciiScores);
     const posturePayload = { theaters };
     await redisSet(url, token, THEATER_POSTURE_LIVE_KEY, posturePayload, THEATER_POSTURE_LIVE_TTL);
     await redisSet(url, token, THEATER_POSTURE_STALE_KEY, posturePayload, THEATER_POSTURE_STALE_TTL);
     await redisSet(url, token, THEATER_POSTURE_BACKUP_KEY, posturePayload, THEATER_POSTURE_BACKUP_TTL);
-    await redisSet(url, token, 'seed-meta:theater-posture', { fetchedAt: assessedAt, recordCount: theaterFlights.length, sourceVersion: source || '' }, 604800);
+    await redisSet(url, token, 'seed-meta:theater-posture', { fetchedAt: assessedAt, recordCount: theaterFlights.length + militaryVessels.length, sourceVersion: source || '' }, 604800);
     const elevated = theaters.filter((t) => t.postureLevel !== 'normal').length;
-    console.log(`  Theater posture: ${theaters.length} theaters (${elevated} elevated)`);
+    console.log(`  Theater posture: ${theaters.length} theaters (${elevated} elevated, ${militaryVessels.length} vessels)`);
 
     const priorSurgeHistory = ((await redisGet(url, token, MILITARY_SURGES_HISTORY_KEY))?.history || []);
     const theaterActivity = summarizeMilitaryTheaters(flights, POSTURE_THEATERS, assessedAt);

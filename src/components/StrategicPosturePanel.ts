@@ -1,8 +1,7 @@
 import { Panel } from './Panel';
 import { escapeHtml } from '@/utils/sanitize';
 import { fetchCachedTheaterPosture, type CachedTheaterPosture } from '@/services/cached-theater-posture';
-import { fetchMilitaryVessels } from '@/services/military-vessels';
-import { recalcPostureWithVessels, type TheaterPostureSummary } from '@/services/military-surge';
+import type { TheaterPostureSummary } from '@/services/military-surge';
 import { isDesktopRuntime } from '@/services/runtime';
 import { t } from '../services/i18n';
 import type { NewsItem, DeductContextDetail } from '@/types';
@@ -10,7 +9,6 @@ import { buildNewsContext } from '@/utils/news-context';
 
 export class StrategicPosturePanel extends Panel {
   private postures: TheaterPostureSummary[] = [];
-  private vesselTimeouts: ReturnType<typeof setTimeout>[] = [];
   private loadingElapsedInterval: ReturnType<typeof setInterval> | null = null;
   private loadingStartTime: number = 0;
   private onLocationClick?: (lat: number, lon: number) => void;
@@ -32,24 +30,10 @@ export class StrategicPosturePanel extends Panel {
   private init(): void {
     this.showLoading();
     void this.fetchAndRender();
-    // Re-augment with vessels after stream has had time to populate
-    // AIS data accumulates gradually - check at 30s, 60s, 90s, 120s
-    this.vesselTimeouts.push(setTimeout(() => this.reaugmentVessels(), 30 * 1000));
-    this.vesselTimeouts.push(setTimeout(() => this.reaugmentVessels(), 60 * 1000));
-    this.vesselTimeouts.push(setTimeout(() => this.reaugmentVessels(), 90 * 1000));
-    this.vesselTimeouts.push(setTimeout(() => this.reaugmentVessels(), 120 * 1000));
   }
 
   private isPanelVisible(): boolean {
     return !this.element.classList.contains('hidden');
-  }
-
-  private async reaugmentVessels(): Promise<void> {
-    if (!this.isPanelVisible() || this.postures.length === 0) return;
-    console.log('[StrategicPosturePanel] Re-augmenting with vessels...');
-    await this.augmentWithVessels();
-    if (!this.element?.isConnected) return;
-    this.render();
   }
 
   public override showLoading(): void {
@@ -66,10 +50,6 @@ export class StrategicPosturePanel extends Panel {
             <div class="posture-stage active">
               <span class="posture-stage-dot"></span>
               <span>${t('components.strategicPosture.positions')}</span>
-            </div>
-            <div class="posture-stage pending">
-              <span class="posture-stage-dot"></span>
-              <span>${t('components.strategicPosture.navalVesselsLoading')}</span>
             </div>
             <div class="posture-stage pending">
               <span class="posture-stage-dot"></span>
@@ -103,19 +83,16 @@ export class StrategicPosturePanel extends Panel {
     }
   }
 
-  private showLoadingStage(stage: 'aircraft' | 'vessels' | 'analysis'): void {
+  private showLoadingStage(stage: 'aircraft' | 'analysis'): void {
     const stages = this.content.querySelectorAll('.posture-stage');
     if (stages.length === 0) return;
 
     stages.forEach((el, i) => {
       el.classList.remove('active', 'complete');
       if (stage === 'aircraft' && i === 0) el.classList.add('active');
-      else if (stage === 'vessels') {
+      else if (stage === 'analysis') {
         if (i === 0) el.classList.add('complete');
         else if (i === 1) el.classList.add('active');
-      } else if (stage === 'analysis') {
-        if (i <= 1) el.classList.add('complete');
-        else if (i === 2) el.classList.add('active');
       }
     });
   }
@@ -141,11 +118,6 @@ export class StrategicPosturePanel extends Panel {
       this.lastTimestamp = data.timestamp;
       this.isStale = data.stale || false;
 
-      // Try to augment with vessel data (client-side)
-      this.showLoadingStage('vessels');
-      await this.augmentWithVessels();
-      if (!this.element?.isConnected) return;
-
       this.showLoadingStage('analysis');
       this.updateBadges();
       this.render();
@@ -163,109 +135,6 @@ export class StrategicPosturePanel extends Panel {
     }
   }
 
-  private async augmentWithVessels(): Promise<void> {
-    try {
-      const { vessels } = await fetchMilitaryVessels();
-      console.log(`[StrategicPosturePanel] Got ${vessels.length} total military vessels`);
-      if (vessels.length === 0) {
-        // AIS stream hasn't accumulated data yet — restore from cache
-        this.restoreVesselCounts();
-        recalcPostureWithVessels(this.postures);
-        return;
-      }
-
-      // Merge vessel counts into each theater
-      for (const posture of this.postures) {
-        if (!posture.bounds) continue;
-
-        // Filter vessels within theater bounds
-        const theaterVessels = vessels.filter(
-          (v) =>
-            v.lat >= posture.bounds!.south &&
-            v.lat <= posture.bounds!.north &&
-            v.lon >= posture.bounds!.west &&
-            v.lon <= posture.bounds!.east
-        );
-
-        // Count by type
-        posture.destroyers = theaterVessels.filter((v) => v.vesselType === 'destroyer').length;
-        posture.frigates = theaterVessels.filter((v) => v.vesselType === 'frigate').length;
-        posture.carriers = theaterVessels.filter((v) => v.vesselType === 'carrier').length;
-        posture.submarines = theaterVessels.filter((v) => v.vesselType === 'submarine').length;
-        posture.patrol = theaterVessels.filter((v) => v.vesselType === 'patrol').length;
-        posture.auxiliaryVessels = theaterVessels.filter(
-          (v) => v.vesselType === 'auxiliary' || v.vesselType === 'special' || v.vesselType === 'amphibious' || v.vesselType === 'icebreaker' || v.vesselType === 'research' || v.vesselType === 'unknown'
-        ).length;
-        posture.totalVessels = theaterVessels.length;
-
-        if (theaterVessels.length > 0) {
-          console.log(`[StrategicPosturePanel] ${posture.shortName}: ${theaterVessels.length} vessels`, theaterVessels.map(v => v.vesselType));
-        }
-
-        // Add vessel operators to byOperator
-        for (const v of theaterVessels) {
-          const op = v.operator || 'unknown';
-          posture.byOperator[op] = (posture.byOperator[op] || 0) + 1;
-        }
-      }
-
-      // Cache vessel counts per theater in localStorage for instant restore on refresh
-      this.cacheVesselCounts();
-
-      // Recalculate posture levels now that vessels are included
-      recalcPostureWithVessels(this.postures);
-      console.log('[StrategicPosturePanel] Augmented with', vessels.length, 'vessels, posture levels recalculated');
-    } catch (error) {
-      console.warn('[StrategicPosturePanel] Failed to fetch vessels:', error);
-      // Restore cached vessel counts if live fetch failed
-      this.restoreVesselCounts();
-      recalcPostureWithVessels(this.postures);
-    }
-  }
-
-  private cacheVesselCounts(): void {
-    try {
-      const counts: Record<string, { destroyers: number; frigates: number; carriers: number; submarines: number; patrol: number; auxiliaryVessels: number; totalVessels: number }> = {};
-      for (const p of this.postures) {
-        if (p.totalVessels > 0) {
-          counts[p.theaterId] = {
-            destroyers: p.destroyers || 0,
-            frigates: p.frigates || 0,
-            carriers: p.carriers || 0,
-            submarines: p.submarines || 0,
-            patrol: p.patrol || 0,
-            auxiliaryVessels: p.auxiliaryVessels || 0,
-            totalVessels: p.totalVessels || 0,
-          };
-        }
-      }
-      localStorage.setItem('wm:vesselPosture', JSON.stringify({ counts, ts: Date.now() }));
-    } catch { /* quota exceeded or private mode */ }
-  }
-
-  private restoreVesselCounts(): void {
-    try {
-      const raw = localStorage.getItem('wm:vesselPosture');
-      if (!raw) return;
-      const { counts, ts } = JSON.parse(raw);
-      // Only use cache if < 30 minutes old
-      if (Date.now() - ts > 30 * 60 * 1000) return;
-      for (const p of this.postures) {
-        const cached = counts[p.theaterId];
-        if (cached) {
-          p.destroyers = cached.destroyers;
-          p.frigates = cached.frigates;
-          p.carriers = cached.carriers;
-          p.submarines = cached.submarines;
-          p.patrol = cached.patrol;
-          p.auxiliaryVessels = cached.auxiliaryVessels;
-          p.totalVessels = cached.totalVessels;
-        }
-      }
-      console.log('[StrategicPosturePanel] Restored cached vessel counts');
-    } catch { /* parse error */ }
-  }
-
   public updatePostures(data: CachedTheaterPosture): void {
     if (!data || !data.postures?.length) {
       this.showNoData();
@@ -278,11 +147,8 @@ export class StrategicPosturePanel extends Panel {
     }));
     this.lastTimestamp = data.timestamp;
     this.isStale = data.stale || false;
-    this.augmentWithVessels().then(() => {
-      if (!this.element?.isConnected) return;
-      this.updateBadges();
-      this.render();
-    });
+    this.updateBadges();
+    this.render();
   }
 
   private updateBadges(): void {
@@ -560,8 +426,6 @@ export class StrategicPosturePanel extends Panel {
 
   public destroy(): void {
     this.stopLoadingTimer();
-    this.vesselTimeouts.forEach(t => clearTimeout(t));
-    this.vesselTimeouts = [];
     super.destroy();
   }
 }
