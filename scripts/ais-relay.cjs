@@ -276,6 +276,21 @@ function safeEnd(res, statusCode, headers, body) {
   }
 }
 
+function normalizeWorldBankCountryCodes(rawValue) {
+  const allowed = new Set([
+    'USA','CHN','JPN','DEU','KOR','GBR','IND','ISR','SGP','TWN',
+    'FRA','CAN','SWE','NLD','CHE','FIN','IRL','AUS','BRA','IDN',
+    'ARE','SAU','QAT','BHR','EGY','TUR','MYS','THA','VNM','PHL',
+    'ESP','ITA','POL','CZE','DNK','NOR','AUT','BEL','PRT','EST',
+    'MEX','ARG','CHL','COL','ZAF','NGA','KEN',
+  ]);
+  const parts = String(rawValue || '')
+    .split(/[;,]/g)
+    .map((part) => part.trim().toUpperCase())
+    .filter((part) => /^[A-Z]{3}$/.test(part) && allowed.has(part));
+  return parts.length > 0 ? parts.join(';') : null;
+}
+
 function _acceptsEncoding(header, encoding) {
   if (!header) return false;
   const tokens = header.split(',');
@@ -6220,16 +6235,8 @@ function handleWorldBankRequest(req, res) {
   const country = wbParams.get('country');
   const countries = wbParams.get('countries');
   const years = parseInt(wbParams.get('years') || '5', 10);
-  const countryList = country || (countries ? countries.split(',').join(';') : [
-    'USA','CHN','JPN','DEU','KOR','GBR','IND','ISR','SGP','TWN',
-    'FRA','CAN','SWE','NLD','CHE','FIN','IRL','AUS','BRA','IDN',
-    'ARE','SAU','QAT','BHR','EGY','TUR','MYS','THA','VNM','PHL',
-    'ESP','ITA','POL','CZE','DNK','NOR','AUT','BEL','PRT','EST',
-    'MEX','ARG','CHL','COL','ZAF','NGA','KEN',
-  ].join(';'));
 
   const currentYear = new Date().getFullYear();
-  const startYear = currentYear - years;
   const TECH_INDICATORS = {
     'IT.NET.USER.ZS': 'Internet Users (% of population)',
     'IT.CEL.SETS.P2': 'Mobile Subscriptions (per 100 people)',
@@ -6248,6 +6255,24 @@ function handleWorldBankRequest(req, res) {
     'NY.GDP.PCAP.CD': 'GDP per Capita (current US$)',
     'NE.EXP.GNFS.ZS': 'Exports of Goods & Services (% of GDP)',
   };
+
+  const indicator = wbParams.get('indicator');
+  if (!indicator || !Object.prototype.hasOwnProperty.call(TECH_INDICATORS, indicator)) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: 'Invalid indicator parameter' }));
+  }
+
+  const countryList = normalizeWorldBankCountryCodes(country)
+    || normalizeWorldBankCountryCodes(countries)
+    || [
+      'USA','CHN','JPN','DEU','KOR','GBR','IND','ISR','SGP','TWN',
+      'FRA','CAN','SWE','NLD','CHE','FIN','IRL','AUS','BRA','IDN',
+      'ARE','SAU','QAT','BHR','EGY','TUR','MYS','THA','VNM','PHL',
+      'ESP','ITA','POL','CZE','DNK','NOR','AUT','BEL','PRT','EST',
+      'MEX','ARG','CHL','COL','ZAF','NGA','KEN',
+    ].join(';');
+
+  const startYear = currentYear - years;
 
   const wbUrl = `https://api.worldbank.org/v2/country/${countryList}/indicator/${encodeURIComponent(indicator)}?format=json&date=${startYear}:${currentYear}&per_page=1000`;
 

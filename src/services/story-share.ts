@@ -2,6 +2,20 @@ import type { StoryData } from './story-data';
 import { toFlagEmoji } from '@/utils/country-flag';
 import { getCanonicalApiOrigin } from '@/services/runtime';
 
+const STORY_TYPES = new Set(['ciianalysis', 'convergence', 'brief'] as const);
+
+function sanitizeCountryCode(value: string): string {
+  const code = String(value || '').trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(code) ? code : '';
+}
+
+function sanitizeStoryType(value: string | null): 'ciianalysis' | 'convergence' | 'brief' {
+  const type = String(value || 'ciianalysis').trim().toLowerCase();
+  return STORY_TYPES.has(type as 'ciianalysis' | 'convergence' | 'brief')
+    ? (type as 'ciianalysis' | 'convergence' | 'brief')
+    : 'ciianalysis';
+}
+
 // Deep link generator for story sharing
 export function generateStoryDeepLink(
   countryCode: string,
@@ -9,13 +23,15 @@ export function generateStoryDeepLink(
   score?: number,
   level?: string
 ): string {
+  const safeCountryCode = sanitizeCountryCode(countryCode);
+  const safeType = sanitizeStoryType(type);
   const params = new URLSearchParams({
-    c: countryCode,
-    t: type,
+    c: safeCountryCode,
+    t: safeType,
     ts: Date.now().toString()
   });
   if (score !== undefined) params.set('s', String(score));
-  if (level) params.set('l', level);
+  if (level) params.set('l', String(level).trim().slice(0, 32));
   return `${getCanonicalApiOrigin()}/api/story?${params.toString()}`;
 }
 
@@ -23,9 +39,11 @@ export function generateStoryDeepLink(
 export function parseStoryParams(url: URL): { countryCode: string; type: string } | null {
   const countryCode = url.searchParams.get('c');
   if (!countryCode) return null;
+  const safeCountryCode = sanitizeCountryCode(countryCode);
+  if (!safeCountryCode) return null;
   return {
-    countryCode,
-    type: url.searchParams.get('t') || 'ciianalysis'
+    countryCode: safeCountryCode,
+    type: sanitizeStoryType(url.searchParams.get('t'))
   };
 }
 
@@ -94,7 +112,7 @@ export function getShareUrls(data: StoryData): Record<string, string> {
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`,
     reddit: `https://reddit.com/submit?url=${encodeURIComponent(url)}&title=${encodeURIComponent(`${data.countryName} Intelligence Brief - World Monitor`)}`,
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`,
-    whatsapp: `https://wa.me/?text=${encodeURIComponent(shareTexts.whatsapp(data).replace('\n', '%0A'))}`,
-    telegram: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareTexts.telegram(data).replace('\n', '%0A'))}`,
+    whatsapp: `https://wa.me/?text=${encodeURIComponent(shareTexts.whatsapp(data))}`,
+    telegram: `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(shareTexts.telegram(data))}`,
   };
 }
