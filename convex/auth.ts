@@ -8,8 +8,7 @@ import { Resend } from "resend";
 
 const siteUrl = process.env.SITE_URL!;
 
-// Use resend.dev for dev/testing, switch to worldmonitor.app after domain verification
-const fromAddress = "WorldMonitor <noreply@resend.dev>";
+const fromAddress = "World Monitor <noreply@worldmonitor.app>";
 
 // Lazy singleton -- Resend throws if API key is missing at construction time,
 // but Convex analyzes module-level code during deployment. Deferring to first
