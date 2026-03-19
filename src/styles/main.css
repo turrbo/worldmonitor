@@ -19847,7 +19847,7 @@ body.has-breaking-alert .panels-grid {
   padding: 10px;
   border: none;
   border-radius: 6px;
-  background: var(--accent);
+  background: #3b82f6;
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -19897,41 +19897,6 @@ body.has-breaking-alert .panels-grid {
   margin-top: 12px;
 }
 .auth-back-link:hover { color: var(--text); }
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 16px 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-}
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.auth-google-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--text);
-  font-size: 14px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.auth-google-btn:hover {
-  background: var(--bg);
-}
 
 .auth-footer {
   margin-top: 16px;

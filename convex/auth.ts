@@ -2,6 +2,8 @@ import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { components } from "./_generated/api";
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
+import { organization } from "better-auth/plugins";
+import { dash } from "@better-auth/infra";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
 import { Resend } from "resend";
@@ -35,6 +37,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       'https://finance.worldmonitor.app',
       'https://commodity.worldmonitor.app',
       'https://happy.worldmonitor.app',
+      'https://dash.better-auth.com',
     ],
     database: authComponent.adapter(ctx),
     emailAndPassword: {
@@ -96,15 +99,11 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
     // NOTE: Do NOT use additionalFields for role — the Convex betterAuth
     // component has a strict validator that rejects unknown fields.
     // Roles are stored in the separate userRoles table instead.
-    socialProviders: {
-      google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-      },
-    },
     plugins: [
       crossDomain({ siteUrl }),
       convex({ authConfig }),
+      dash(),
+      organization(),
     ],
   }) satisfies BetterAuthOptions;
 
