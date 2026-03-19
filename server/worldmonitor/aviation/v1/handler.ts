@@ -19,6 +19,6 @@ export const aviationHandler: AviationServiceHandler = {
   searchFlightPrices,
   listAviationNews,
   getYoutubeLiveStreamInfo: async (_ctx, _req) => ({
-    videoId: '', isLive: false, channelExists: false, channelName: '', hlsUrl: '',
+    videoId: '', isLive: false, channelExists: false, channelName: '', hlsUrl: '', title: '', error: '',
   }),
 };

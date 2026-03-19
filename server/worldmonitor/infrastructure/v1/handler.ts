@@ -14,7 +14,7 @@ export const infrastructureHandler: InfrastructureServiceHandler = {
   getTemporalBaseline,
   recordBaselineSnapshot,
   listTemporalAnomalies,
-  getIpGeo: async (_ctx, _req) => ({ ip: '', countryCode: '', countryName: '', city: '', latitude: 0, longitude: 0, isp: '' }),
-  reverseGeocode: async (_ctx, _req) => ({ countryCode: '', countryName: '', city: '', region: '', formatted: '' }),
-  getBootstrapData: async (_ctx, _req) => ({ data: {} }),
+  getIpGeo: async (_ctx, _req) => ({ country: '', region: '', city: '' }),
+  reverseGeocode: async (_ctx, _req) => ({ country: '', code: '', displayName: '', error: '' }),
+  getBootstrapData: async (_ctx, _req) => ({ data: {}, missing: [] }),
 };
