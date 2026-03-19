@@ -17,6 +17,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
   ({
     trustedOrigins: [
       siteUrl,
+      'http://localhost:3000',
       'https://worldmonitor.app',
       'https://tech.worldmonitor.app',
       'https://finance.worldmonitor.app',
