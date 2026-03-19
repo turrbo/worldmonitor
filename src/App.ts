@@ -25,6 +25,7 @@ import type { MacroSignalsPanel } from '@/components/MacroSignalsPanel';
 import type { StrategicPosturePanel } from '@/components/StrategicPosturePanel';
 import type { StrategicRiskPanel } from '@/components/StrategicRiskPanel';
 import type { GulfEconomiesPanel } from '@/components/GulfEconomiesPanel';
+import type { GroceryBasketPanel } from '@/components/GroceryBasketPanel';
 import { isDesktopRuntime, waitForSidecarReady } from '@/services/runtime';
 import { getSecretState } from '@/services/runtime-config';
 import { BETA_MODE } from '@/config/beta';
@@ -145,6 +146,10 @@ export class App {
     if (shouldPrime('gulf-economies')) {
       const panel = this.state.panels['gulf-economies'] as GulfEconomiesPanel | undefined;
       if (panel) primeTask('gulf-economies', () => panel.fetchData());
+    }
+    if (shouldPrime('grocery-basket')) {
+      const panel = this.state.panels['grocery-basket'] as GroceryBasketPanel | undefined;
+      if (panel) primeTask('grocery-basket', () => panel.fetchData());
     }
     if (shouldPrimeAny(['markets', 'heatmap', 'commodities', 'crypto', 'energy-complex'])) {
       primeTask('markets', () => this.dataLoader.loadMarkets());
@@ -881,6 +886,13 @@ export class App {
       () => (this.state.panels['gulf-economies'] as GulfEconomiesPanel).fetchData(),
       REFRESH_INTERVALS.gulfEconomies,
       () => this.isPanelNearViewport('gulf-economies')
+    );
+
+    this.refreshScheduler.scheduleRefresh(
+      'grocery-basket',
+      () => (this.state.panels['grocery-basket'] as GroceryBasketPanel).fetchData(),
+      REFRESH_INTERVALS.groceryBasket,
+      () => this.isPanelNearViewport('grocery-basket')
     );
 
     // Refresh intelligence signals for CII (geopolitical variant only)

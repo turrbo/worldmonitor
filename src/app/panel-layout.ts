@@ -36,6 +36,7 @@ import {
   SupplyChainPanel,
   SanctionsPressurePanel,
   GulfEconomiesPanel,
+  GroceryBasketPanel,
   WorldClockPanel,
   AirlineIntelPanel,
   AviationCommandBar,
@@ -764,6 +765,10 @@ export class PanelLayoutManager implements AppModule {
 
     if (this.shouldCreatePanel('gulf-economies') && !this.ctx.panels['gulf-economies']) {
       this.ctx.panels['gulf-economies'] = new GulfEconomiesPanel();
+    }
+
+    if (this.shouldCreatePanel('grocery-basket') && !this.ctx.panels['grocery-basket']) {
+      this.ctx.panels['grocery-basket'] = new GroceryBasketPanel();
     }
 
     if (this.shouldCreatePanel('live-news')) {

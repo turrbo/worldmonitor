@@ -9,6 +9,7 @@ import { getEnergyCapacity } from './get-energy-capacity';
 import { getBisPolicyRates } from './get-bis-policy-rates';
 import { getBisExchangeRates } from './get-bis-exchange-rates';
 import { getBisCredit } from './get-bis-credit';
+import { listGroceryBasketPrices } from './list-grocery-basket-prices';
 
 export const economicHandler: EconomicServiceHandler = {
   getFredSeries,
@@ -20,4 +21,5 @@ export const economicHandler: EconomicServiceHandler = {
   getBisPolicyRates,
   getBisExchangeRates,
   getBisCredit,
+  listGroceryBasketPrices,
 };
