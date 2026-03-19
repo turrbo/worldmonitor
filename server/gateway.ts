@@ -196,7 +196,9 @@ export function createDomainGateway(
       forceKey: PREMIUM_RPC_PATHS.has(pathname),
     });
     if (keyCheck.required && !keyCheck.valid) {
-      // For premium endpoints, try bearer token as fallback auth
+      // Bearer token fallback is exclusive to premium endpoints.
+      // For non-premium paths that fail API-key validation (e.g., external
+      // origins without a key), fall through to the else branch returning 401.
       if (PREMIUM_RPC_PATHS.has(pathname)) {
         const authHeader = request.headers.get('Authorization');
         if (authHeader?.startsWith('Bearer ')) {

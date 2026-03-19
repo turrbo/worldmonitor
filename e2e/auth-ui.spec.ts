@@ -39,7 +39,7 @@ test.describe('auth UI (anonymous state)', () => {
     await expect(modal).toBeVisible({ timeout: 5000 });
   });
 
-  test('modal has Sign In, Sign Up, Forgot Password', async ({ page }) => {
+  test('modal shows email entry form', async ({ page }) => {
     await page.goto('/');
     await page.locator('.auth-signin-btn').waitFor({ timeout: 20000 });
     await jsClick(page, '.auth-signin-btn');
@@ -47,32 +47,14 @@ test.describe('auth UI (anonymous state)', () => {
     const content = page.locator('#authModal.active .auth-modal-content');
     await expect(content).toBeVisible({ timeout: 5000 });
 
-    await expect(content.locator('text=Sign In').first()).toBeVisible();
-    await expect(content.locator('text=Sign Up').first()).toBeVisible();
-    await expect(content.locator('text=Forgot password').first()).toBeVisible();
-  });
-
-  test('Forgot Password shows reset form', async ({ page }) => {
-    await page.goto('/');
-    await page.locator('.auth-signin-btn').waitFor({ timeout: 20000 });
-    await jsClick(page, '.auth-signin-btn');
-
-    const content = page.locator('#authModal.active .auth-modal-content');
-    await expect(content).toBeVisible({ timeout: 5000 });
-
-    // Use JS click to bypass any remaining overlay issues
-    await jsClick(page, '.auth-forgot-link');
-    await expect(content.locator('text=Reset Password').first()).toBeVisible({ timeout: 3000 });
+    await expect(content.locator('input[type="email"]')).toBeVisible();
+    await expect(content.locator('button[type="submit"]')).toBeVisible();
   });
 
   test('premium panels gated for anonymous users', async ({ page }) => {
     await page.goto('/');
     await page.waitForSelector('.panel', { timeout: 20000 });
-    // Auth subscription + panel creation need time
-    await page.waitForTimeout(5000);
-
-    const lockedCount = await page.locator('.panel-is-locked').count();
-    expect(lockedCount).toBeGreaterThanOrEqual(1);
+    await expect(page.locator('.panel-is-locked').first()).toBeVisible({ timeout: 15000 });
   });
 
   test('no auth token in localStorage when anonymous', async ({ page }) => {

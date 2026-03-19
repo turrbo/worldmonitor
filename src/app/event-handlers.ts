@@ -285,6 +285,10 @@ export class EventHandlerManager implements AppModule {
     this.ctx.tvMode = null;
     this.ctx.unifiedSettings?.destroy();
     this.ctx.unifiedSettings = null;
+    this.ctx.authHeaderWidget?.destroy();
+    this.ctx.authHeaderWidget = null;
+    this.ctx.authModal?.destroy();
+    this.ctx.authModal = null;
   }
 
   private setupEventListeners(): void {
@@ -981,6 +985,7 @@ export class EventHandlerManager implements AppModule {
     this.ctx.authModal = modal;
 
     const widget = new AuthHeaderWidget(() => modal.open());
+    this.ctx.authHeaderWidget = widget;
 
     const mount = document.getElementById('authWidgetMount');
     if (mount) {
