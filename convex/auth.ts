@@ -37,7 +37,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       'https://commodity.worldmonitor.app',
       'https://happy.worldmonitor.app',
       'https://dash.better-auth.com',
-      'https://*.worldmonitor.app',
+      '*.worldmonitor.app',
     ],
     database: authComponent.adapter(ctx),
     emailAndPassword: {
