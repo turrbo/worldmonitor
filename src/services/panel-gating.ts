@@ -5,7 +5,6 @@ import { getSecretState } from './runtime-config';
 export enum PanelGateReason {
   NONE = 'none',           // show content (pro user, or desktop with API key, or non-premium panel)
   ANONYMOUS = 'anonymous', // "Sign In to Unlock"
-  UNVERIFIED = 'unverified', // "Verify Email to Unlock" (blocks premium even if signed in)
   FREE_TIER = 'free_tier', // "Upgrade to Pro"
 }
 
@@ -28,7 +27,6 @@ export function getPanelGateReason(
 
   // Web gating based on auth state
   if (!authState.user) return PanelGateReason.ANONYMOUS;
-  if (!authState.user.emailVerified) return PanelGateReason.UNVERIFIED;
   if (authState.user.role !== 'pro') return PanelGateReason.FREE_TIER;
   return PanelGateReason.NONE;
 }

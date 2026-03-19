@@ -43,7 +43,7 @@ import { DataLoaderManager } from '@/app/data-loader';
 import { EventHandlerManager } from '@/app/event-handlers';
 import { resolveUserRegion, resolvePreciseUserCoordinates, type PreciseCoordinates } from '@/utils/user-location';
 import { showProBanner } from '@/components/ProBanner';
-import { initAuthState, getPendingResetToken, clearPendingResetToken } from '@/services/auth-state';
+import { initAuthState } from '@/services/auth-state';
 import {
   CorrelationEngine,
   militaryAdapter,
@@ -557,11 +557,6 @@ export class App {
     // Verify OAuth OTT and hydrate auth session BEFORE any UI subscribes to auth state
     await initAuthState();
 
-    // Check for password reset token from email link -- will be routed to modal after UI init
-    const pendingResetToken = getPendingResetToken();
-    if (pendingResetToken) {
-      clearPendingResetToken();
-    }
 
     const geoCoordsPromise: Promise<PreciseCoordinates | null> =
       this.state.isMobile && this.state.initialUrlState?.lat === undefined && this.state.initialUrlState?.lon === undefined
@@ -627,11 +622,6 @@ export class App {
     this.eventHandlers.setupUnifiedSettings();
     this.eventHandlers.setupAuthWidget();
 
-    // Route pending password reset token to auth modal
-    if (pendingResetToken && this.state.authModal) {
-      this.state.authModal.open('reset-password');
-      this.state.authModal.setResetToken?.(pendingResetToken);
-    }
 
     // Phase 4: SearchManager, MapLayerHandlers, CountryIntel
     this.searchManager.init();

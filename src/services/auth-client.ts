@@ -3,10 +3,13 @@ import {
   convexClient,
   crossDomainClient,
 } from "@convex-dev/better-auth/client/plugins";
+import { emailOTPClient } from "better-auth/client/plugins";
+
 export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_CONVEX_SITE_URL,
   plugins: [
     crossDomainClient(),
     convexClient(),
+    emailOTPClient(),
   ],
 });

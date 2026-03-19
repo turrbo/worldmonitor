@@ -2,6 +2,7 @@ import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { components } from "./_generated/api";
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
+import { emailOTP } from "better-auth/plugins/email-otp";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
 import { Resend } from "resend";
@@ -40,69 +41,49 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       'https://valiant-bison-406.convex.site',
       'https://tacit-curlew-777.convex.site',
     ],
+    baseURL: siteUrl,
     database: authComponent.adapter(ctx),
-    emailAndPassword: {
-      enabled: true,
-      sendResetPassword: async ({ user, url }) => {
-        await getResend().emails.send({
-          from: fromAddress,
-          to: user.email,
-          subject: "Reset your WorldMonitor password",
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e;">
-              <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600;">WorldMonitor</h2>
-              <p style="margin: 0 0 24px; color: #666; font-size: 14px;">Password Reset Request</p>
-              <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.5;">
-                We received a request to reset the password for your account. Click the button below to choose a new password.
-              </p>
-              <a href="${url}" style="display: inline-block; background: #3b82f6; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 500; margin: 8px 0 24px;">
-                Reset Password
-              </a>
-              <p style="margin: 0 0 8px; font-size: 13px; color: #888; line-height: 1.4;">
-                This link expires in 1 hour. If you did not request a password reset, you can safely ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;" />
-              <p style="margin: 0; font-size: 12px; color: #aaa;">WorldMonitor &mdash; Real-time global intelligence</p>
-            </div>
-          `,
-        });
-      },
-      resetPasswordTokenExpiresIn: 3600, // 1 hour
-    },
-    emailVerification: {
-      sendVerificationEmail: async ({ user, url }) => {
-        await getResend().emails.send({
-          from: fromAddress,
-          to: user.email,
-          subject: "Verify your WorldMonitor email",
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e;">
-              <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600;">WorldMonitor</h2>
-              <p style="margin: 0 0 24px; color: #666; font-size: 14px;">Email Verification</p>
-              <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.5;">
-                Thanks for signing up! Please verify your email address to unlock all features.
-              </p>
-              <a href="${url}" style="display: inline-block; background: #3b82f6; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 6px; font-size: 15px; font-weight: 500; margin: 8px 0 24px;">
-                Verify Email
-              </a>
-              <p style="margin: 0 0 8px; font-size: 13px; color: #888; line-height: 1.4;">
-                If you did not create a WorldMonitor account, you can safely ignore this email.
-              </p>
-              <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;" />
-              <p style="margin: 0; font-size: 12px; color: #aaa;">WorldMonitor &mdash; Real-time global intelligence</p>
-            </div>
-          `,
-        });
-      },
-      sendOnSignUp: true,
-      autoSignInAfterVerification: true,
-    },
     // NOTE: Do NOT use additionalFields for role — the Convex betterAuth
     // component has a strict validator that rejects unknown fields.
     // Roles are stored in the separate userRoles table instead.
     plugins: [
       crossDomain({ siteUrl }),
       convex({ authConfig }),
+      emailOTP({
+        async sendVerificationOTP({ email, otp, type }) {
+          const subjectByType: Record<string, string> = {
+            'sign-in': 'Your WorldMonitor sign-in code',
+            'email-verification': 'Verify your WorldMonitor email',
+            'forget-password': 'Your WorldMonitor password reset code',
+            'change-email': 'Confirm your new email address',
+          };
+          await getResend().emails.send({
+            from: fromAddress,
+            to: email,
+            subject: subjectByType[type] ?? 'Your WorldMonitor code',
+            html: `
+              <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a2e;">
+                <h2 style="margin: 0 0 8px; font-size: 20px; font-weight: 600;">WorldMonitor</h2>
+                <p style="margin: 0 0 24px; color: #666; font-size: 14px;">Your verification code</p>
+                <p style="margin: 0 0 16px; font-size: 15px; line-height: 1.5;">
+                  Use the code below to continue. It expires in 5 minutes.
+                </p>
+                <div style="background: #f4f4f5; border-radius: 8px; padding: 20px; text-align: center; margin: 8px 0 24px;">
+                  <span style="font-size: 32px; font-weight: 700; letter-spacing: 6px; color: #1a1a2e;">${otp}</span>
+                </div>
+                <p style="margin: 0 0 8px; font-size: 13px; color: #888; line-height: 1.4;">
+                  If you did not request this code, you can safely ignore this email.
+                </p>
+                <hr style="border: none; border-top: 1px solid #e5e5e5; margin: 24px 0;" />
+                <p style="margin: 0; font-size: 12px; color: #aaa;">WorldMonitor &mdash; Real-time global intelligence</p>
+              </div>
+            `,
+          });
+        },
+        otpLength: 6,
+        expiresIn: 300,
+        sendVerificationOnSignUp: true,
+      }),
     ],
   }) satisfies BetterAuthOptions;
 

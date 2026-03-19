@@ -167,11 +167,7 @@ export class PanelLayoutManager implements AppModule {
   private getGateAction(reason: PanelGateReason): () => void {
     switch (reason) {
       case PanelGateReason.ANONYMOUS:
-        return () => this.ctx.authModal?.open('signin');
-      case PanelGateReason.UNVERIFIED:
-        // Delegate to auth modal -- it shows the verification banner.
-        // Do NOT call authClient directly here.
-        return () => this.ctx.authModal?.open('signin');
+        return () => this.ctx.authModal?.open();
       case PanelGateReason.FREE_TIER:
         return () => window.open('https://worldmonitor.app/pro', '_blank');
       default:

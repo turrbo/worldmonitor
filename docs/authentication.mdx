@@ -11,11 +11,10 @@ WorldMonitor uses [better-auth](https://better-auth.com) with a Convex database 
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| Auth server | better-auth + `@convex-dev/better-auth` | Email/password sign-up/sign-in, session management |
+| Auth server | better-auth + `@convex-dev/better-auth` | Email OTP sign-in, session management |
 | Auth routes | Convex HTTP router | `/api/auth/*` endpoints on `*.convex.site` |
-| Auth client | `better-auth/client` + `crossDomainClient` | Browser session persistence across subdomains |
-| Email | Resend | Verification emails, password reset emails |
-| Admin | `admin` plugin (better-auth) | User management API (`/api/auth/admin/*`) |
+| Auth client | `better-auth/client` + `crossDomainClient` + `emailOTPClient` | Browser session persistence across subdomains |
+| Email | Resend | OTP verification codes |
 
 ### Key Files
 
@@ -26,8 +25,8 @@ WorldMonitor uses [better-auth](https://better-auth.com) with a Convex database 
 | `src/services/auth-client.ts` | Browser auth client (crossDomain + convex plugins) |
 | `src/services/auth-state.ts` | Reactive auth state, role fetching, session hydration |
 | `src/services/auth-token.ts` | Extracts session token from localStorage for API calls |
-| `src/components/AuthModal.ts` | Sign-in/sign-up/forgot-password/reset-password UI |
-| `src/components/AuthHeaderWidget.ts` | Header sign-in button, user dropdown, verification banner |
+| `src/components/AuthModal.ts` | Email OTP sign-in UI (enter email, verify code) |
+| `src/components/AuthHeaderWidget.ts` | Header sign-in button, user dropdown |
 
 ---
 
@@ -39,8 +38,7 @@ Premium panels show a CTA overlay instead of content until the user meets the ac
 
 | Reason | What the user sees | Resolution |
 |--------|-------------------|------------|
-| `ANONYMOUS` | "Sign In to Unlock" | Sign in or create account |
-| `UNVERIFIED` | "Verify Email to Unlock" | Click verification link in email |
+| `ANONYMOUS` | "Sign In to Unlock" | Sign in or create account (email OTP) |
 | `FREE_TIER` | "Upgrade to Pro" | Upgrade subscription |
 | `NONE` | Normal panel content | Already unlocked |
 
@@ -133,7 +131,7 @@ The gateway tries the API key first. If that fails on a premium endpoint, it fal
 |----------|-------|---------|
 | `BETTER_AUTH_SECRET` | Convex | Signs session tokens |
 | `SITE_URL` | Convex | Base URL for email links (e.g. `https://worldmonitor.app`) |
-| `RESEND_API_KEY` | Convex | Sends verification + reset emails |
+| `RESEND_API_KEY` | Convex | Sends OTP verification codes |
 | `CONVEX_SITE_URL` | Vercel | Server-side Convex URL for session validation |
 | `VITE_CONVEX_SITE_URL` | Vercel | Client-side Convex URL (Vite requires `VITE_` prefix) |
 
@@ -143,9 +141,4 @@ The gateway tries the API key first. If that fails on a premium endpoint, it fal
 
 Roles are stored in the `userRoles` Convex table (not in better-auth's user table — the Convex component validator rejects additional fields). The client fetches the role from `userRoles:getUserRole` and caches it per session.
 
-To assign the `pro` role to a user, update their entry in the Convex dashboard's `userRoles` table, or use the admin API endpoint:
-
-```
-POST /api/auth/admin/set-role
-{ "userId": "...", "role": "admin" }
-```
+To assign the `pro` role to a user, update their entry in the Convex dashboard's `userRoles` table directly.

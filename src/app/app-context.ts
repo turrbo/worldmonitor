@@ -73,7 +73,7 @@ export interface AppContext {
   digestPanel: import('@/components/GoodThingsDigestPanel').GoodThingsDigestPanel | null;
   speciesPanel: import('@/components/SpeciesComebackPanel').SpeciesComebackPanel | null;
   renewablePanel: import('@/components/RenewableEnergyPanel').RenewableEnergyPanel | null;
-  authModal: { open(tab?: 'signin' | 'signup' | 'reset-password'): void; close(): void; destroy(): void; setResetToken?(token: string): void } | null;
+  authModal: { open(): void; close(): void; destroy(): void } | null;
   tvMode: import('@/services/tv-mode').TvModeController | null;
   happyAllItems: NewsItem[];
   isDestroyed: boolean;

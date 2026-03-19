@@ -806,11 +806,6 @@ export class Panel {
         desc: t('premium.signInToUnlock'),
         cta: t('premium.signIn'),
       },
-      [PanelGateReason.UNVERIFIED]: {
-        icon: lockSvg,
-        desc: t('premium.verifyEmailToUnlock'),
-        cta: t('premium.resendVerification'),
-      },
       [PanelGateReason.FREE_TIER]: {
         icon: upgradeSvg,
         desc: t('premium.upgradeDesc'),
