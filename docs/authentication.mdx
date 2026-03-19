@@ -1,0 +1,151 @@
+---
+title: "Authentication & Panel Gating"
+description: "How user authentication, premium panel gating, and server-side session enforcement work in WorldMonitor."
+---
+
+WorldMonitor uses [better-auth](https://better-auth.com) with a Convex database backend for authentication. The auth system gates premium panels behind sign-in and tier checks, and enforces session-based access on server-side API endpoints.
+
+---
+
+## Auth Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Auth server | better-auth + `@convex-dev/better-auth` | Email/password sign-up/sign-in, session management |
+| Auth routes | Convex HTTP router | `/api/auth/*` endpoints on `*.convex.site` |
+| Auth client | `better-auth/client` + `crossDomainClient` | Browser session persistence across subdomains |
+| Email | Resend | Verification emails, password reset emails |
+| Admin | `admin` plugin (better-auth) | User management API (`/api/auth/admin/*`) |
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `convex/auth.ts` | Server auth config — plugins, email templates, trusted origins |
+| `convex/http.ts` | Mounts auth routes on Convex HTTP router |
+| `src/services/auth-client.ts` | Browser auth client (crossDomain + convex plugins) |
+| `src/services/auth-state.ts` | Reactive auth state, role fetching, session hydration |
+| `src/services/auth-token.ts` | Extracts session token from localStorage for API calls |
+| `src/components/AuthModal.ts` | Sign-in/sign-up/forgot-password/reset-password UI |
+| `src/components/AuthHeaderWidget.ts` | Header sign-in button, user dropdown, verification banner |
+
+---
+
+## Panel Gating
+
+Premium panels show a CTA overlay instead of content until the user meets the access requirements.
+
+### Gate Reasons
+
+| Reason | What the user sees | Resolution |
+|--------|-------------------|------------|
+| `ANONYMOUS` | "Sign In to Unlock" | Sign in or create account |
+| `UNVERIFIED` | "Verify Email to Unlock" | Click verification link in email |
+| `FREE_TIER` | "Upgrade to Pro" | Upgrade subscription |
+| `NONE` | Normal panel content | Already unlocked |
+
+### How to Configure Which Panels Are Premium
+
+Three files control gating. **All three must stay in sync** when adding or removing premium panels.
+
+#### 1. Panel config — `src/config/panels.ts`
+
+Add `premium: 'locked'` to the panel entry in the relevant variant:
+
+```ts
+// In FULL_PANELS, FINANCE_PANELS, etc.
+'my-panel': { name: 'My Panel', enabled: true, premium: 'locked' }
+```
+
+#### 2. Client-side gate set — `src/app/panel-layout.ts`
+
+Add the panel key to `WEB_PREMIUM_PANELS`:
+
+```ts
+const WEB_PREMIUM_PANELS = new Set([
+  'stock-analysis',
+  'stock-backtest',
+  'daily-market-brief',
+  'my-panel',  // <-- add here
+]);
+```
+
+This set drives the reactive UI gating — when auth state changes, panels in this set get checked and show/hide CTAs accordingly.
+
+#### 3. Server-side API enforcement (if the panel calls premium APIs)
+
+**Client token injection** — `src/services/runtime.ts` (`WEB_PREMIUM_API_PATHS`):
+
+```ts
+const WEB_PREMIUM_API_PATHS = new Set([
+  '/api/market/v1/analyze-stock',
+  '/api/market/v1/get-stock-analysis-history',
+  '/api/market/v1/backtest-stock',
+  '/api/market/v1/list-stored-stock-backtests',
+  '/api/my-domain/v1/my-endpoint',  // <-- add here
+]);
+```
+
+When a fetch request matches a path in this set and the user has a session, the client automatically injects `Authorization: Bearer <token>`.
+
+**Server gateway** — `server/gateway.ts` (`PREMIUM_RPC_PATHS`):
+
+```ts
+const PREMIUM_RPC_PATHS = new Set([
+  '/api/market/v1/analyze-stock',
+  '/api/market/v1/get-stock-analysis-history',
+  '/api/market/v1/backtest-stock',
+  '/api/market/v1/list-stored-stock-backtests',
+  '/api/my-domain/v1/my-endpoint',  // <-- add here
+]);
+```
+
+The gateway validates the bearer token and checks `session.role === 'pro'`. Returns 403 if the user isn't pro.
+
+### Currently Gated Panels
+
+| Panel | Variants | Gate type |
+|-------|----------|-----------|
+| `stock-analysis` | full, finance | `locked` (web) |
+| `stock-backtest` | full, finance | `locked` (web) |
+| `daily-market-brief` | full, finance | `locked` (web) |
+
+### Desktop Behavior
+
+Desktop users with a valid `WORLDMONITOR_API_KEY` in the Tauri keychain bypass all panel gating. The existing API key flow is unaffected — bearer tokens are a **second auth path**, not a replacement.
+
+---
+
+## Server-Side Session Enforcement
+
+The Vercel API gateway accepts two forms of authentication for premium endpoints:
+
+1. **Static API key** — `X-WorldMonitor-Key` header (existing flow, unchanged)
+2. **Bearer token** — `Authorization: Bearer <session_token>` (new, for web users)
+
+The gateway tries the API key first. If that fails on a premium endpoint, it falls back to bearer token validation via the Convex auth backend. Non-premium endpoints don't require any authentication from web origins.
+
+---
+
+## Environment Variables
+
+| Variable | Where | Purpose |
+|----------|-------|---------|
+| `BETTER_AUTH_SECRET` | Convex | Signs session tokens |
+| `SITE_URL` | Convex | Base URL for email links (e.g. `https://worldmonitor.app`) |
+| `RESEND_API_KEY` | Convex | Sends verification + reset emails |
+| `CONVEX_SITE_URL` | Vercel | Server-side Convex URL for session validation |
+| `VITE_CONVEX_SITE_URL` | Vercel | Client-side Convex URL (Vite requires `VITE_` prefix) |
+
+---
+
+## User Roles
+
+Roles are stored in the `userRoles` Convex table (not in better-auth's user table — the Convex component validator rejects additional fields). The client fetches the role from `userRoles:getUserRole` and caches it per session.
+
+To assign the `pro` role to a user, update their entry in the Convex dashboard's `userRoles` table, or use the admin API endpoint:
+
+```
+POST /api/auth/admin/set-role
+{ "userId": "...", "role": "admin" }
+```
