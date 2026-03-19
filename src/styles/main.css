@@ -20033,6 +20033,83 @@ body.has-breaking-alert .panels-grid {
   width: fit-content;
 }
 
+.auth-tier-badge-pro {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+/* ── Verification Status ── */
+.auth-verify-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  margin-top: 2px;
+}
+.auth-verify-status-unverified {
+  color: #f0ad4e;
+}
+.auth-verify-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f0ad4e;
+}
+
+/* ── Verification Banner ── */
+.auth-verify-banner {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(240, 173, 78, 0.15);
+  border-bottom: 1px solid rgba(240, 173, 78, 0.3);
+  font-size: 13px;
+  color: var(--text);
+  backdrop-filter: blur(8px);
+}
+.auth-verify-banner-text {
+  color: var(--text-secondary);
+}
+.auth-verify-banner-resend {
+  background: none;
+  border: 1px solid rgba(240, 173, 78, 0.5);
+  border-radius: 4px;
+  padding: 2px 10px;
+  color: #f0ad4e;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.auth-verify-banner-resend:hover {
+  background: rgba(240, 173, 78, 0.1);
+  border-color: #f0ad4e;
+}
+.auth-verify-banner-resend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.auth-verify-banner-close {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.auth-verify-banner-close:hover {
+  color: var(--text);
+}
+
 .auth-dropdown-divider {
   height: 1px;
   background: var(--border);

@@ -2,8 +2,11 @@ import { authClient } from '@/services/auth-client';
 import { subscribeAuthState } from '@/services/auth-state';
 import type { AuthSession } from '@/services/auth-state';
 
+const BANNER_DISMISSED_KEY = 'wm-verify-banner-dismissed';
+
 export class AuthHeaderWidget {
   private container: HTMLElement;
+  private banner: HTMLElement | null = null;
   private unsubscribeAuth: (() => void) | null = null;
   private onSignInClick: () => void;
   private dropdownOpen = false;
@@ -19,6 +22,7 @@ export class AuthHeaderWidget {
       if (state.isPending) {
         // Show nothing while pending
         this.container.innerHTML = '';
+        this.removeBanner();
         return;
       }
       this.render(state);
@@ -31,6 +35,7 @@ export class AuthHeaderWidget {
 
   public destroy(): void {
     this.closeDropdown();
+    this.removeBanner();
     if (this.unsubscribeAuth) {
       this.unsubscribeAuth();
       this.unsubscribeAuth = null;
@@ -45,6 +50,7 @@ export class AuthHeaderWidget {
       this.container.innerHTML = `<button class="auth-signin-btn">Sign In</button>`;
       const btn = this.container.querySelector<HTMLButtonElement>('.auth-signin-btn');
       btn?.addEventListener('click', () => this.onSignInClick());
+      this.removeBanner();
       return;
     }
 
@@ -55,13 +61,23 @@ export class AuthHeaderWidget {
       ? `<img class="auth-avatar-img" src="${this.escapeAttr(user.image)}" alt="${this.escapeAttr(user.name)}" width="28" height="28" />`
       : `<span class="auth-avatar-initials">${this.escapeHtml(initials)}</span>`;
 
+    const isPro = user.role === 'pro';
+    const tierBadgeClass = isPro ? 'auth-tier-badge auth-tier-badge-pro' : 'auth-tier-badge';
+    const tierLabel = isPro ? 'Pro' : 'Free';
+
+    // Verification status indicator in dropdown
+    const verificationIndicator = !user.emailVerified
+      ? '<span class="auth-verify-status auth-verify-status-unverified"><span class="auth-verify-dot"></span> Unverified</span>'
+      : '';
+
     this.container.innerHTML = `
       <button class="auth-avatar-btn" aria-label="Account menu">${avatarContent}</button>
       <div class="auth-dropdown">
         <div class="auth-dropdown-header">
           <strong>${this.escapeHtml(user.name)}</strong>
           <span>${this.escapeHtml(user.email)}</span>
-          <span class="auth-tier-badge">Free</span>
+          ${verificationIndicator}
+          <span class="${tierBadgeClass}">${tierLabel}</span>
         </div>
         <div class="auth-dropdown-divider"></div>
         <button class="auth-signout-btn">Sign Out</button>
@@ -89,6 +105,67 @@ export class AuthHeaderWidget {
       }
       // Auth state subscription will trigger re-render to anonymous state
     });
+
+    // Show/hide verification banner
+    if (!user.emailVerified && !sessionStorage.getItem(BANNER_DISMISSED_KEY)) {
+      this.showVerificationBanner(user.email);
+    } else {
+      this.removeBanner();
+    }
+  }
+
+  private showVerificationBanner(email: string): void {
+    // Reuse existing banner if present
+    if (this.banner) return;
+
+    this.banner = document.createElement('div');
+    this.banner.className = 'auth-verify-banner';
+    this.banner.innerHTML = `
+      <span class="auth-verify-banner-text">Verify your email to unlock premium features.</span>
+      <button class="auth-verify-banner-resend">Resend</button>
+      <button class="auth-verify-banner-close" aria-label="Dismiss">&times;</button>
+    `;
+
+    // Resend verification email
+    const resendBtn = this.banner.querySelector<HTMLButtonElement>('.auth-verify-banner-resend');
+    resendBtn?.addEventListener('click', async () => {
+      resendBtn.disabled = true;
+      resendBtn.textContent = 'Sending...';
+      try {
+        await (authClient as any).sendVerificationEmail({
+          email,
+          callbackURL: window.location.origin,
+        });
+        resendBtn.textContent = 'Sent!';
+        setTimeout(() => {
+          resendBtn.textContent = 'Resend';
+          resendBtn.disabled = false;
+        }, 3000);
+      } catch (err) {
+        console.warn('[auth-widget] Resend verification error:', err);
+        resendBtn.textContent = 'Failed';
+        setTimeout(() => {
+          resendBtn.textContent = 'Resend';
+          resendBtn.disabled = false;
+        }, 3000);
+      }
+    });
+
+    // Dismiss banner
+    const closeBtn = this.banner.querySelector<HTMLButtonElement>('.auth-verify-banner-close');
+    closeBtn?.addEventListener('click', () => {
+      sessionStorage.setItem(BANNER_DISMISSED_KEY, '1');
+      this.removeBanner();
+    });
+
+    document.body.appendChild(this.banner);
+  }
+
+  private removeBanner(): void {
+    if (this.banner) {
+      this.banner.remove();
+      this.banner = null;
+    }
   }
 
   private openDropdown(): void {
