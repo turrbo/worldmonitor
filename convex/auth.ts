@@ -15,9 +15,22 @@ export const authComponent = createClient<DataModel>(components.betterAuth, {
 
 export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
   ({
-    trustedOrigins: [siteUrl],
+    trustedOrigins: [
+      siteUrl,
+      'https://worldmonitor.app',
+      'https://tech.worldmonitor.app',
+      'https://finance.worldmonitor.app',
+      'https://commodity.worldmonitor.app',
+      'https://happy.worldmonitor.app',
+    ],
     database: authComponent.adapter(ctx),
     emailAndPassword: { enabled: true },
+    socialProviders: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      },
+    },
     plugins: [
       crossDomain({ siteUrl }),
       convex({ authConfig }),

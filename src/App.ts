@@ -43,6 +43,7 @@ import { DataLoaderManager } from '@/app/data-loader';
 import { EventHandlerManager } from '@/app/event-handlers';
 import { resolveUserRegion, resolvePreciseUserCoordinates, type PreciseCoordinates } from '@/utils/user-location';
 import { showProBanner } from '@/components/ProBanner';
+import { initAuthState } from '@/services/auth-state';
 import {
   CorrelationEngine,
   militaryAdapter,
@@ -432,6 +433,7 @@ export class App {
       digestPanel: null,
       speciesPanel: null,
       renewablePanel: null,
+      authModal: null,
       tvMode: null,
       happyAllItems: [],
       isDestroyed: false,
@@ -551,6 +553,9 @@ export class App {
 
     // Hydrate in-memory cache from bootstrap endpoint (before panels construct and fetch)
     await fetchBootstrapData();
+
+    // Verify OAuth OTT and hydrate auth session BEFORE any UI subscribes to auth state
+    await initAuthState();
 
     const geoCoordsPromise: Promise<PreciseCoordinates | null> =
       this.state.isMobile && this.state.initialUrlState?.lat === undefined && this.state.initialUrlState?.lon === undefined
