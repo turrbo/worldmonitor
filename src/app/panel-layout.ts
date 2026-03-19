@@ -68,6 +68,17 @@ import { McpDataPanel } from '@/components/McpDataPanel';
 import { openMcpConnectModal } from '@/components/McpConnectModal';
 import { loadMcpPanels, saveMcpPanel } from '@/services/mcp-store';
 import type { McpPanelSpec } from '@/services/mcp-store';
+import { subscribeAuthState } from '@/services/auth-state';
+import type { AuthSession } from '@/services/auth-state';
+import { PanelGateReason, getPanelGateReason } from '@/services/panel-gating';
+import type { Panel } from '@/components/Panel';
+
+/** Panels that require premium access on the web. Auth-based gating applies to these. */
+const WEB_PREMIUM_PANELS = new Set([
+  'stock-analysis',
+  'stock-backtest',
+  'daily-market-brief',
+]);
 
 export interface PanelLayoutCallbacks {
   openCountryStory: (code: string, name: string) => void;
@@ -86,6 +97,7 @@ export class PanelLayoutManager implements AppModule {
   private criticalBannerEl: HTMLElement | null = null;
   private aviationCommandBar: AviationCommandBar | null = null;
   private readonly applyTimeRangeFilterDebounced: (() => void) & { cancel(): void };
+  private unsubscribeAuth: (() => void) | null = null;
 
   constructor(ctx: AppContext, callbacks: PanelLayoutCallbacks) {
     this.ctx = ctx;
@@ -97,11 +109,18 @@ export class PanelLayoutManager implements AppModule {
 
   init(): void {
     this.renderLayout();
+
+    // Subscribe to auth state for reactive panel gating on web
+    this.unsubscribeAuth = subscribeAuthState((state) => {
+      this.updatePanelGating(state);
+    });
   }
 
   destroy(): void {
     clearAllPendingCalls();
     this.applyTimeRangeFilterDebounced.cancel();
+    this.unsubscribeAuth?.();
+    this.unsubscribeAuth = null;
     this.panelDragCleanupHandlers.forEach((cleanup) => cleanup());
     this.panelDragCleanupHandlers = [];
     if (this.criticalBannerEl) {
@@ -125,6 +144,39 @@ export class PanelLayoutManager implements AppModule {
     this.ctx.panels['airline-intel']?.destroy();
 
     window.removeEventListener('resize', this.ensureCorrectZones);
+  }
+
+  /** Reactively update premium panel gating based on auth state. */
+  private updatePanelGating(state: AuthSession): void {
+    for (const [key, panel] of Object.entries(this.ctx.panels)) {
+      const isPremium = WEB_PREMIUM_PANELS.has(key);
+      const reason = getPanelGateReason(state, isPremium);
+
+      if (reason === PanelGateReason.NONE) {
+        // User has access -- unlock if previously locked
+        (panel as Panel).unlockPanel();
+      } else {
+        // User does NOT have access -- show appropriate CTA
+        const onAction = this.getGateAction(reason);
+        (panel as Panel).showGatedCta(reason, onAction);
+      }
+    }
+  }
+
+  /** Return the action callback for a given gate reason. */
+  private getGateAction(reason: PanelGateReason): () => void {
+    switch (reason) {
+      case PanelGateReason.ANONYMOUS:
+        return () => this.ctx.authModal?.open('signin');
+      case PanelGateReason.UNVERIFIED:
+        // Delegate to auth modal -- it shows the verification banner.
+        // Do NOT call authClient directly here.
+        return () => this.ctx.authModal?.open('signin');
+      case PanelGateReason.FREE_TIER:
+        return () => window.open('https://worldmonitor.app/pro', '_blank');
+      default:
+        return () => {};
+    }
   }
 
   renderLayout(): void {
@@ -520,22 +572,10 @@ export class PanelLayoutManager implements AppModule {
 
     this.createPanel('heatmap', () => new HeatmapPanel());
     this.createPanel('markets', () => new MarketPanel());
-    const stockAnalysisPanel = this.createPanel('stock-analysis', () => new StockAnalysisPanel());
-    if (stockAnalysisPanel && !getSecretState('WORLDMONITOR_API_KEY').present && !isProWidgetEnabled()) {
-      stockAnalysisPanel.showLocked([
-        'AI stock briefs with technical + news synthesis',
-        'Trend scoring from MA, MACD, RSI, and volume structure',
-        'Actionable watchlist monitoring for your premium workspace',
-      ]);
-    }
-    const stockBacktestPanel = this.createPanel('stock-backtest', () => new StockBacktestPanel());
-    if (stockBacktestPanel && !getSecretState('WORLDMONITOR_API_KEY').present && !isProWidgetEnabled()) {
-      stockBacktestPanel.showLocked([
-        'Historical replay of premium stock-analysis signals',
-        'Win-rate, accuracy, and simulated-return metrics',
-        'Recent evaluation samples for your tracked symbols',
-      ]);
-    }
+    this.createPanel('stock-analysis', () => new StockAnalysisPanel());
+    this.createPanel('stock-backtest', () => new StockBacktestPanel());
+    // Web premium gating for stock-analysis and stock-backtest is handled
+    // reactively by updatePanelGating() via auth state subscription.
 
     const monitorPanel = this.createPanel('monitors', () => new MonitorPanel(this.ctx.monitors));
     monitorPanel?.onChanged((monitors) => {
@@ -725,9 +765,9 @@ export class PanelLayoutManager implements AppModule {
 
     this.lazyPanel('daily-market-brief', () =>
       import('@/components/DailyMarketBriefPanel').then(m => new m.DailyMarketBriefPanel()),
-      undefined,
-      (!_wmKeyPresent && !isProWidgetEnabled()) ? ['Pre-market watchlist priorities', 'Action plan for the session', 'Risk watch tied to current finance headlines'] : undefined,
     );
+    // Web premium gating for daily-market-brief is handled reactively
+    // by updatePanelGating() via auth state subscription.
 
     this.lazyPanel('forecast', () =>
       import('@/components/ForecastPanel').then(m => new m.ForecastPanel()),
