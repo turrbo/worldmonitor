@@ -40,7 +40,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
     emailAndPassword: {
       enabled: true,
       sendResetPassword: async ({ user, url }) => {
-        void getResend().emails.send({
+        await getResend().emails.send({
           from: fromAddress,
           to: user.email,
           subject: "Reset your WorldMonitor password",
@@ -67,7 +67,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
     },
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        void getResend().emails.send({
+        await getResend().emails.send({
           from: fromAddress,
           to: user.email,
           subject: "Verify your WorldMonitor email",
