@@ -2,8 +2,7 @@ import { createClient, type GenericCtx } from "@convex-dev/better-auth";
 import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { components } from "./_generated/api";
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
-import { organization } from "better-auth/plugins";
-import { dash } from "@better-auth/infra";
+import { organization, admin } from "better-auth/plugins";
 import type { DataModel } from "./_generated/dataModel";
 import authConfig from "./auth.config";
 import { Resend } from "resend";
@@ -102,8 +101,8 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
     plugins: [
       crossDomain({ siteUrl }),
       convex({ authConfig }),
-      dash(),
       organization(),
+      admin(),
     ],
   }) satisfies BetterAuthOptions;
 
