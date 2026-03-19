@@ -3,8 +3,6 @@ import { convex, crossDomain } from "@convex-dev/better-auth/plugins";
 import { components } from "./_generated/api";
 import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
 import type { DataModel } from "./_generated/dataModel";
-import { admin } from "better-auth/plugins";
-import { organization } from "better-auth/plugins";
 import authConfig from "./auth.config";
 
 const siteUrl = process.env.SITE_URL!;
@@ -35,8 +33,6 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
     plugins: [
       crossDomain({ siteUrl }),
       convex({ authConfig }),
-      admin(),
-      organization(),
     ],
   }) satisfies BetterAuthOptions;
 
