@@ -57,6 +57,8 @@ import { invokeTauri } from '@/services/tauri-bridge';
 import { dataFreshness } from '@/services/data-freshness';
 import { mlWorker } from '@/services/ml-worker';
 import { UnifiedSettings } from '@/components/UnifiedSettings';
+import { AuthModal } from '@/components/AuthModal';
+import { AuthHeaderWidget } from '@/components/AuthHeaderWidget';
 import { t } from '@/services/i18n';
 import { TvModeController } from '@/services/tv-mode';
 
@@ -971,6 +973,18 @@ export class EventHandlerManager implements AppModule {
     const mobileBtn = document.getElementById('mobileSettingsBtn');
     if (mobileBtn) {
       mobileBtn.addEventListener('click', () => this.ctx.unifiedSettings?.open());
+    }
+  }
+
+  setupAuthWidget(): void {
+    const modal = new AuthModal();
+    this.ctx.authModal = modal;
+
+    const widget = new AuthHeaderWidget(() => modal.open());
+
+    const mount = document.getElementById('authWidgetMount');
+    if (mount) {
+      mount.appendChild(widget.getElement());
     }
   }
 
