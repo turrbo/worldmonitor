@@ -19868,6 +19868,36 @@ body.has-breaking-alert .panels-grid {
   min-height: 18px;
 }
 
+.auth-success {
+  color: #27ae60;
+  font-size: 13px;
+  text-align: center;
+  min-height: 18px;
+}
+
+.auth-forgot-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  margin-top: -4px;
+}
+.auth-forgot-link:hover { text-decoration: underline; }
+
+.auth-back-link {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+  margin-top: 12px;
+}
+.auth-back-link:hover { color: var(--text); }
+
 .auth-divider {
   display: flex;
   align-items: center;

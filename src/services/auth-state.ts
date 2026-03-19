@@ -71,6 +71,28 @@ function mapRawUser(rawUser: any): AuthUser {
 }
 
 // ---------------------------------------------------------------------------
+// Password reset token detection
+// ---------------------------------------------------------------------------
+
+/** Pending reset token detected from URL ?token=... param (distinct from OTT). */
+let pendingResetToken: string | null = null;
+
+/**
+ * Get the pending password reset token detected on page load.
+ * Returns null if no token was found or if it has already been consumed.
+ */
+export function getPendingResetToken(): string | null {
+  return pendingResetToken;
+}
+
+/**
+ * Clear the pending password reset token after it has been consumed.
+ */
+export function clearPendingResetToken(): void {
+  pendingResetToken = null;
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
@@ -83,21 +105,25 @@ function mapRawUser(rawUser: any): AuthUser {
  *  2. Otherwise, calls `getSession()` to hydrate from the stored
  *     localStorage cookie (crossDomainClient handles persistence).
  *
+ * Also detects password reset tokens (?token=...) from email links
+ * and stores them for the App to route to the reset form.
+ *
  * After session hydration, fetches the user's role from the Convex
  * userRoles table and caches it for synchronous reads.
  */
 export async function initAuthState(): Promise<void> {
   const url = new URL(window.location.href);
-  const token = url.searchParams.get('ott');
+  const ottToken = url.searchParams.get('ott');
+  const resetTokenParam = url.searchParams.get('token');
 
-  if (token) {
+  if (ottToken) {
     // Clean the OTT param from the visible URL immediately
     url.searchParams.delete('ott');
     window.history.replaceState({}, '', url.toString());
 
     try {
       // Cast needed: crossDomain plugin types are not fully re-exported
-      const result = await (authClient as any).crossDomain.oneTimeToken.verify({ token });
+      const result = await (authClient as any).crossDomain.oneTimeToken.verify({ token: ottToken });
       const session = result?.data?.session;
 
       if (session) {
@@ -113,8 +139,20 @@ export async function initAuthState(): Promise<void> {
     } catch (err) {
       console.warn('[auth-state] OTT verification failed:', err);
     }
+  } else if (resetTokenParam) {
+    // Password reset token from email link -- store for App to consume
+    pendingResetToken = resetTokenParam;
+    url.searchParams.delete('token');
+    window.history.replaceState({}, '', url.toString());
+
+    // Still hydrate session in case user has an existing session
+    try {
+      await authClient.getSession();
+    } catch (err) {
+      console.warn('[auth-state] Session hydration failed:', err);
+    }
   } else {
-    // No OTT -- hydrate session from stored localStorage cookie
+    // No OTT, no reset token -- hydrate session from stored localStorage cookie
     try {
       await authClient.getSession();
     } catch (err) {
