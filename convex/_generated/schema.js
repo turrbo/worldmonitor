@@ -13,8 +13,21 @@ export default defineSchema({
     })
         .index("by_normalized_email", ["normalizedEmail"])
         .index("by_referral_code", ["referralCode"]),
+    contactMessages: defineTable({
+        name: v.string(),
+        email: v.string(),
+        organization: v.optional(v.string()),
+        phone: v.optional(v.string()),
+        message: v.optional(v.string()),
+        source: v.string(),
+        receivedAt: v.number(),
+    }),
     counters: defineTable({
         name: v.string(),
         value: v.number(),
     }).index("by_name", ["name"]),
+    userRoles: defineTable({
+        userId: v.string(),
+        role: v.string(), // "free" | "pro"
+    }).index("by_userId", ["userId"]),
 });
