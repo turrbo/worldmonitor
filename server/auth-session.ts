@@ -35,7 +35,8 @@ export interface SessionResult {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory cache (per edge invocation — short-lived)
+// In-memory cache -- persists across warm invocations within the same Vercel
+// edge isolate. TTL ensures staleness is bounded.
 // ---------------------------------------------------------------------------
 
 const sessionCache = new Map<string, { data: SessionResult; expiresAt: number }>();

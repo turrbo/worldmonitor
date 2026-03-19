@@ -25,17 +25,20 @@ const CONVEX_CLOUD_URL = CONVEX_SITE_URL
   ? CONVEX_SITE_URL.replace('.convex.site', '.convex.cloud')
   : '';
 
+const ROLE_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 /** Cached role for the current user -- avoids re-fetching on every state read. */
 let cachedRole: 'free' | 'pro' = 'free';
 let cachedRoleUserId: string | null = null;
+let cachedRoleExpiresAt = 0;
 
 /**
  * Fetch the user's role from the Convex userRoles table.
  * Falls back to "free" on any error.
  */
 async function fetchUserRole(userId: string): Promise<'free' | 'pro'> {
-  // Return cached value if we already fetched for this user
-  if (cachedRoleUserId === userId) return cachedRole;
+  // Return cached value if we already fetched for this user and TTL hasn't expired
+  if (cachedRoleUserId === userId && Date.now() < cachedRoleExpiresAt) return cachedRole;
   if (!CONVEX_CLOUD_URL) return 'free';
 
   try {
@@ -51,6 +54,7 @@ async function fetchUserRole(userId: string): Promise<'free' | 'pro'> {
     const role = data.value?.role === 'pro' ? 'pro' as const : 'free' as const;
     cachedRole = role;
     cachedRoleUserId = userId;
+    cachedRoleExpiresAt = Date.now() + ROLE_CACHE_TTL_MS;
     return role;
   } catch {
     return 'free';
@@ -151,6 +155,7 @@ export function subscribeAuthState(callback: (state: AuthSession) => void): () =
       // Signed out -- clear role cache
       cachedRole = 'free';
       cachedRoleUserId = null;
+      cachedRoleExpiresAt = 0;
       callback({ user: null, isPending: raw.isPending ?? false });
       return;
     }

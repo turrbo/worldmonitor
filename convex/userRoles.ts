@@ -1,5 +1,10 @@
-import { query, mutation } from "./_generated/server";
+import { query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+
+// NOTE: Intentionally public -- called from both client (auth-state.ts) and
+// server (auth-session.ts) via Convex HTTP query API. The only data exposed is
+// the role string ("free"/"pro") for a known userId. Auth-gating would require
+// a Convex HTTP action with session header forwarding, deferred for now.
 
 /**
  * Get the role for a user. Returns "free" if no role row exists.
@@ -20,8 +25,9 @@ export const getUserRole = query({
 /**
  * Set (upsert) the role for a user. Admin-only in practice --
  * called from Convex dashboard or admin scripts, not from the client.
+ * Using internalMutation so it cannot be called from any client SDK.
  */
-export const setUserRole = mutation({
+export const setUserRole = internalMutation({
   args: {
     userId: v.string(),
     role: v.string(),

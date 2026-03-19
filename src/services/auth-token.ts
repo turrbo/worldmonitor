@@ -10,6 +10,11 @@ const COOKIE_STORAGE_KEY = 'better-auth_cookie';
 /** Key within the parsed cookie JSON that holds the session token. */
 const SESSION_TOKEN_KEY = 'better-auth.session_token';
 
+// WARNING: This function depends on the internal localStorage shape used by
+// better-auth's crossDomainClient plugin. If better-auth changes its storage
+// format, this will silently return null. Pin better-auth version and verify
+// after upgrades.
+
 /**
  * Read the better-auth session token from the crossDomainClient localStorage
  * cookie storage. Returns the raw token string suitable for a Bearer header,
