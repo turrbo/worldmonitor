@@ -2,8 +2,7 @@
  * Server-side session validation for the Vercel edge gateway.
  *
  * Validates bearer tokens by calling the Convex `/api/auth/get-session`
- * endpoint with the `Better-Auth-Cookie` header format expected by the
- * crossDomainClient plugin. Falls back to the `userRoles:getUserRole`
+ * endpoint with an `Authorization: Bearer` header. Falls back to the `userRoles:getUserRole`
  * Convex query when the role is not present in the get-session response.
  *
  * Results are cached in-memory with a 60-second TTL to reduce repeated
@@ -74,11 +73,11 @@ export async function validateBearerToken(token: string): Promise<SessionResult>
   if (!CONVEX_SITE_URL) return { valid: false };
 
   try {
-    // Call Convex get-session with the session token as a cookie header
+    // Call Convex get-session with the session token as a Bearer header
     const resp = await fetch(`${CONVEX_SITE_URL}/api/auth/get-session`, {
       method: 'GET',
       headers: {
-        'Better-Auth-Cookie': `; better-auth.session_token=${token}`,
+        'Authorization': `Bearer ${token}`,
       },
     });
 
