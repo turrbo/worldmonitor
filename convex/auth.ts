@@ -5,7 +5,6 @@ import { betterAuth, type BetterAuthOptions } from "better-auth/minimal";
 import type { DataModel } from "./_generated/dataModel";
 import { admin } from "better-auth/plugins";
 import { organization } from "better-auth/plugins";
-import { dash } from "@better-auth/infra";
 import authConfig from "./auth.config";
 
 const siteUrl = process.env.SITE_URL!;
@@ -24,7 +23,6 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       convex({ authConfig }),
       admin(),
       organization(),
-      dash(),
     ],
   }) satisfies BetterAuthOptions;
 
