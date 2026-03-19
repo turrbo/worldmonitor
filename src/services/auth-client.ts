@@ -1,6 +1,13 @@
-import { createAuthClient } from 'better-auth/client';
-import { sentinelClient } from '@better-auth/infra/client';
+import { createAuthClient } from "better-auth/client";
+import {
+  convexClient,
+  crossDomainClient,
+} from "@convex-dev/better-auth/client/plugins";
 
 export const authClient = createAuthClient({
-  plugins: [sentinelClient()],
+  baseURL: import.meta.env.VITE_CONVEX_SITE_URL,
+  plugins: [
+    crossDomainClient(),
+    convexClient(),
+  ],
 });
