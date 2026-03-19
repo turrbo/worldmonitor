@@ -21,8 +21,10 @@ export interface AuthSession {
 // ---------------------------------------------------------------------------
 
 // Derive the Convex cloud URL from the site URL (replace .convex.site -> .convex.cloud)
-const CONVEX_CLOUD_URL = (import.meta.env.VITE_CONVEX_SITE_URL as string)
-  .replace('.convex.site', '.convex.cloud');
+const CONVEX_SITE_URL = import.meta.env.VITE_CONVEX_SITE_URL as string | undefined;
+const CONVEX_CLOUD_URL = CONVEX_SITE_URL
+  ? CONVEX_SITE_URL.replace('.convex.site', '.convex.cloud')
+  : '';
 
 /** Cached role for the current user -- avoids re-fetching on every state read. */
 let cachedRole: 'free' | 'pro' = 'free';
@@ -35,6 +37,7 @@ let cachedRoleUserId: string | null = null;
 async function fetchUserRole(userId: string): Promise<'free' | 'pro'> {
   // Return cached value if we already fetched for this user
   if (cachedRoleUserId === userId) return cachedRole;
+  if (!CONVEX_CLOUD_URL) return 'free';
 
   try {
     const resp = await fetch(`${CONVEX_CLOUD_URL}/api/query`, {
