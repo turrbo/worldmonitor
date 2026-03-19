@@ -19950,8 +19950,8 @@ body.has-breaking-alert .panels-grid {
   padding: 6px 14px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
+  background: transparent;
+  color: var(--text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
