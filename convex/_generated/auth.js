@@ -5,8 +5,7 @@ import { betterAuth } from "better-auth/minimal";
 import authConfig from "./auth.config";
 import { Resend } from "resend";
 const siteUrl = process.env.SITE_URL;
-// Use resend.dev for dev/testing, switch to worldmonitor.app after domain verification
-const fromAddress = "WorldMonitor <noreply@resend.dev>";
+const fromAddress = "World Monitor <noreply@worldmonitor.app>";
 // Lazy singleton -- Resend throws if API key is missing at construction time,
 // but Convex analyzes module-level code during deployment. Deferring to first
 // call avoids the error when RESEND_API_KEY is not yet set.
@@ -34,7 +33,7 @@ export const createAuthOptions = (ctx) => ({
     emailAndPassword: {
         enabled: true,
         sendResetPassword: async ({ user, url }) => {
-            void getResend().emails.send({
+            await getResend().emails.send({
                 from: fromAddress,
                 to: user.email,
                 subject: "Reset your WorldMonitor password",
@@ -61,7 +60,7 @@ export const createAuthOptions = (ctx) => ({
     },
     emailVerification: {
         sendVerificationEmail: async ({ user, url }) => {
-            void getResend().emails.send({
+            await getResend().emails.send({
                 from: fromAddress,
                 to: user.email,
                 subject: "Verify your WorldMonitor email",
@@ -87,16 +86,9 @@ export const createAuthOptions = (ctx) => ({
         sendOnSignUp: true,
         autoSignInAfterVerification: true,
     },
-    user: {
-        additionalFields: {
-            role: {
-                type: "string",
-                required: false,
-                input: false,
-                defaultValue: "free",
-            },
-        },
-    },
+    // NOTE: Do NOT use additionalFields for role — the Convex betterAuth
+    // component has a strict validator that rejects unknown fields.
+    // Roles are stored in the separate userRoles table instead.
     socialProviders: {
         google: {
             clientId: process.env.GOOGLE_CLIENT_ID,
