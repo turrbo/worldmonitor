@@ -94,16 +94,9 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) =>
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
     },
-    user: {
-      additionalFields: {
-        role: {
-          type: "string" as const,
-          required: false,
-          input: false,
-          defaultValue: "free",
-        },
-      },
-    },
+    // NOTE: Do NOT use additionalFields for role — the Convex betterAuth
+    // component has a strict validator that rejects unknown fields.
+    // Roles are stored in the separate userRoles table instead.
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID!,
