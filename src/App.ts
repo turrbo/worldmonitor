@@ -623,7 +623,6 @@ export class App {
     this.eventHandlers.setupUnifiedSettings();
     this.eventHandlers.setupAuthWidget();
 
-
     // Phase 4: SearchManager, MapLayerHandlers, CountryIntel
     this.searchManager.init();
     this.eventHandlers.setupMapLayerHandlers();

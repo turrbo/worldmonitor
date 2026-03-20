@@ -61,6 +61,7 @@ import { AuthModal } from '@/components/AuthModal';
 import { AuthHeaderWidget } from '@/components/AuthHeaderWidget';
 import { t } from '@/services/i18n';
 import { TvModeController } from '@/services/tv-mode';
+import { getAuthState, subscribeAuthState } from '@/services/auth-state';
 
 export interface EventHandlerCallbacks {
   updateSearchIndex: () => void;
@@ -98,6 +99,7 @@ export class EventHandlerManager implements AppModule {
   private boundPanelCloseHandler: ((e: Event) => void) | null = null;
   private boundWidgetModifyHandler: ((e: Event) => void) | null = null;
   private boundUndoHandler: ((e: KeyboardEvent) => void) | null = null;
+  private proGateUnsubscribers: Array<() => void> = [];
   private closedPanelStack: string[] = []; // max-items: 20
   private idleTimeoutId: ReturnType<typeof setTimeout> | null = null;
   private snapshotIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -281,6 +283,8 @@ export class EventHandlerManager implements AppModule {
       document.removeEventListener('keydown', this.boundUndoHandler);
       this.boundUndoHandler = null;
     }
+    for (const unsub of this.proGateUnsubscribers) unsub();
+    this.proGateUnsubscribers = [];
     this.ctx.tvMode?.destroy();
     this.ctx.tvMode = null;
     this.ctx.unifiedSettings?.destroy();
@@ -314,6 +318,7 @@ export class EventHandlerManager implements AppModule {
     });
 
     this.initDownloadDropdown();
+    this.initFooterDownload();
 
     this.boundStorageHandler = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.panels && e.newValue) {
@@ -781,6 +786,28 @@ export class EventHandlerManager implements AppModule {
     document.addEventListener('keydown', this.boundDropdownKeydownHandler);
   }
 
+  private initFooterDownload(): void {
+    const mount = document.getElementById('footerDownloadMount');
+    if (!mount) return;
+    const platform = detectPlatform();
+    const primary = buttonsForPlatform(platform);
+    const btn = primary[0];
+    if (!btn) return;
+    const a = document.createElement('a');
+    a.href = btn.href;
+    a.textContent = t('header.downloadApp');
+    a.className = 'site-footer-download-link';
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      const plat = new URL(btn.href, location.origin).searchParams.get('platform') || 'unknown';
+      trackDownloadClicked(plat);
+      window.open(btn.href, '_blank');
+    });
+    mount.replaceWith(a);
+  }
+
   private setCopyLinkFeedback(button: HTMLElement | null, message: string): void {
     if (!button) return;
     const originalText = button.textContent ?? '';
@@ -911,10 +938,17 @@ export class EventHandlerManager implements AppModule {
       timestamp: Date.now(),
     }));
 
+    const el = this.ctx.exportPanel.getElement();
     const headerRight = this.ctx.container.querySelector('.header-right');
     if (headerRight) {
-      headerRight.insertBefore(this.ctx.exportPanel.getElement(), headerRight.firstChild);
+      headerRight.insertBefore(el, headerRight.firstChild);
     }
+
+    const applyProGate = (isPro: boolean) => {
+      el.style.display = isPro ? '' : 'none';
+    };
+    applyProGate(getAuthState().user?.role === 'pro');
+    this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
   setupUnifiedSettings(): void {
@@ -984,9 +1018,11 @@ export class EventHandlerManager implements AppModule {
     const modal = new AuthModal();
     this.ctx.authModal = modal;
 
-    const widget = new AuthHeaderWidget(() => modal.open());
+    const widget = new AuthHeaderWidget(
+      () => modal.open(),
+      () => this.ctx.unifiedSettings?.open(),
+    );
     this.ctx.authHeaderWidget = widget;
-
     const mount = document.getElementById('authWidgetMount');
     if (mount) {
       mount.appendChild(widget.getElement());
@@ -1005,10 +1041,17 @@ export class EventHandlerManager implements AppModule {
       }
     });
 
+    const el = this.ctx.playbackControl.getElement();
     const headerRight = this.ctx.container.querySelector('.header-right');
     if (headerRight) {
-      headerRight.insertBefore(this.ctx.playbackControl.getElement(), headerRight.firstChild);
+      headerRight.insertBefore(el, headerRight.firstChild);
     }
+
+    const applyProGate = (isPro: boolean) => {
+      el.style.display = isPro ? '' : 'none';
+    };
+    applyProGate(getAuthState().user?.role === 'pro');
+    this.proGateUnsubscribers.push(subscribeAuthState(state => applyProGate(state.user?.role === 'pro')));
   }
 
   setupSnapshotSaving(): void {
