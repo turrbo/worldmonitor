@@ -6252,7 +6252,10 @@ function handleWorldBankRequest(req, res) {
   };
 
   const indicator = wbParams.get('indicator');
-  if (!indicator || !Object.prototype.hasOwnProperty.call(TECH_INDICATORS, indicator)) {
+  // Validate World Bank indicator code format (e.g. IT.NET.USER.ZS, NY.GDP.MKTP.CD).
+  // Accept any code with 2-6 dot-separated alphanumeric segments; this allows callers
+  // to request indicators beyond the TECH_INDICATORS display-name map.
+  if (!indicator || !/^[A-Z0-9]{2,10}(\.[A-Z0-9]{2,10}){1,5}$/.test(indicator)) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'Invalid indicator parameter' }));
   }
